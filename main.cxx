@@ -30,6 +30,7 @@
 #include <string>
 #include <cstdio>
 #include <cstdlib> // for exit
+#include <cstdarg>
 #include <gsl/gsl_fft_complex.h>
 
 #include <TH2D.h>
@@ -37,9 +38,6 @@
 #include <TFile.h>
 #include <TComplex.h>
 #include <TDatime.h>
-
-#include <stdio.h>
-#include <stdarg.h>
 
 #include "iqtdata.h"
 #include "FritzDPSS.h"
@@ -115,7 +113,9 @@ void do_process_iqt(const char * outfile, const char* infile)
     Int_t Npoint = 1024; // Number of points for making one FFT frame
     Int_t first_index = 0;
     complex <Double_t> * iq_data_p = new complex <Double_t> [Npoint];
-    TComplex* sgn = new TComplex[cFrmPt];
+    complex<double>* sgn = new complex<double>[cFrmPt];
+    fftw_plan p = fftw_plan_dft_1d(cFrmPt, reinterpret_cast<fftw_complex*> (sgn), reinterpret_cast<fftw_complex*> (sgn), FFTW_FORWARD, FFTW_MEASURE);
+
 
     /// for Multitaper, delta_t cover on RSA always 1024 Points
 
@@ -134,11 +134,11 @@ void do_process_iqt(const char * outfile, const char* infile)
     Int_t n_of_multi = block_size;
     Int_t i_multi;
     Double_t ** multi_taper_spektrum = new Double_t * [n_of_multi]; 
-    Double_t ** mtpsd = new Double_t * [n_of_multi];
+    //Double_t ** mtpsd = new Double_t * [n_of_multi];
     Double_t ** fft = new Double_t * [n_of_multi];
     for (i_multi=0; i_multi < n_of_multi; i_multi++) {
         multi_taper_spektrum[i_multi] = new Double_t [Npoint];
-        mtpsd[i_multi] = new Double_t [cFrmPt];
+        //mtpsd[i_multi] = new Double_t [cFrmPt];
         fft[i_multi] = new Double_t [cFrmPt];
     }
 
@@ -164,7 +164,7 @@ void do_process_iqt(const char * outfile, const char* infile)
             }
             index++;
             iq_data_p[ip] = iq_value;
-            sgn[ip] = TComplex(real(iq_value), imag(iq_value));
+            sgn[ip] = iq_value;
 
             // Fill out time histograms
 
@@ -176,10 +176,10 @@ void do_process_iqt(const char * outfile, const char* infile)
         // Spectrum calculation
 
         my_dpss.GetSpectrum(iq_data_p, multi_taper_spektrum[i_multi]);
-        Multitaper(sgn, mtpsd[i_multi]);
-        FFT(sgn, cFrmPt);
+        //Multitaper(sgn, mtpsd[i_multi]);
+        fftw_execute(p);
         for (int index = 0; index < cFrmPt; index++)
-            fft[i_multi][index] = sgn[index].Rho();
+            fft[i_multi][index] = norm(sgn[index]);
 
         // progress bar
         if (!(i_multi % 10))
@@ -199,7 +199,7 @@ void do_process_iqt(const char * outfile, const char* infile)
     // Create the 2D histogram
 
     TH2D *h_iqt_mtpsd_fn = new TH2D("h_iqt_mtpsd_fn",Form("%s;Frequency[Hz] (%g [Hz/bin]);Time [s] (%g [s/bin]);Intensity [a.u.]", infile, dfreq_multi, delta_t),binf,fstart,fend,bint,0.0,(Double_t)(bint)*delta_t);
-    TH2D *h_iqt_mtpsd_xc = new TH2D("h_iqt_mtpsd_xc",Form("%s;Frequency[Hz] (%g [Hz/bin]);Time [s] (%g [s/bin]);Intensity [a.u.]", infile, dfreq_multi, delta_t),binf,fstart,fend,bint,0.0,(Double_t)(bint)*delta_t);
+    //TH2D *h_iqt_mtpsd_xc = new TH2D("h_iqt_mtpsd_xc",Form("%s;Frequency[Hz] (%g [Hz/bin]);Time [s] (%g [s/bin]);Intensity [a.u.]", infile, dfreq_multi, delta_t),binf,fstart,fend,bint,0.0,(Double_t)(bint)*delta_t);
     TH2D * h_iqt_fft = new TH2D("h_iqt_fft",Form("%s;Frequency[Hz] (%g [Hz/bin]);Time [s] (%g [s/bin]);Intensity [a.u.]", infile, dfreq_multi, delta_t),binf,fstart,fend,bint,0.0,(Double_t)(bint)*delta_t);
 
     // constant of multiplication for z axis
@@ -209,7 +209,7 @@ void do_process_iqt(const char * outfile, const char* infile)
         for (i_multi = 0; i_multi < n_of_multi; i_multi++)
         {
             h_iqt_mtpsd_fn->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, multi_taper_spektrum[i_multi][ifreq] * constant);
-            h_iqt_mtpsd_xc->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, mtpsd[i_multi][(cFrmPt-ifmax_multi/2-ifmin_multi/2+ifreq)%cFrmPt] * constant);
+            //h_iqt_mtpsd_xc->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, mtpsd[i_multi][(cFrmPt-ifmax_multi/2-ifmin_multi/2+ifreq)%cFrmPt] * constant);
             h_iqt_fft->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, fft[i_multi][(cFrmPt-ifmax_multi/2-ifmin_multi/2+ifreq)%cFrmPt] * constant);
         } 
     }
@@ -218,7 +218,7 @@ void do_process_iqt(const char * outfile, const char* infile)
     // Store the spectra
 
     do_append_to_file(outfile, h_iqt_mtpsd_fn);
-    do_append_to_file(outfile, h_iqt_mtpsd_xc);
+    //do_append_to_file(outfile, h_iqt_mtpsd_xc);
     do_append_to_file(outfile, h_iqt_fft);
     do_append_to_file(outfile, h_iqt_time_abs);
     do_append_to_file(outfile, h_iqt_time_arg);
@@ -226,18 +226,19 @@ void do_process_iqt(const char * outfile, const char* infile)
 
     // clean up
 
+    fftw_destroy_plan(p);
     for (i_multi=0; i_multi < n_of_multi; i_multi++) {
         delete [] multi_taper_spektrum[i_multi];
-        delete [] mtpsd[i_multi];
+        //delete [] mtpsd[i_multi];
         delete [] fft[i_multi];
     }
     delete [] multi_taper_spektrum;
-    delete [] mtpsd;
+    //delete [] mtpsd;
     delete [] fft;
     delete [] iq_data_p;
     delete [] sgn;
     delete h_iqt_mtpsd_fn;
-    delete h_iqt_mtpsd_xc;
+    //delete h_iqt_mtpsd_xc;
     delete h_iqt_fft;
     delete h_iqt_time_abs;
     delete h_iqt_time_arg;
@@ -278,44 +279,49 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
 
     double i, q;
     int j, k, tmp;
-    double mtpsd[cFrmPt] = {};
-    double fft[cFrmPt] = {};
-    TComplex sgn[cFrmPt] = {};
+    double* mtpsd = (double*) malloc(sizeof(double) * cFrmPt);
+    complex<double>* sgn = (complex<double>*) fftw_malloc(
+            sizeof(complex<double>) * cFrmPt);
+    fftw_plan p = fftw_plan_dft_1d(cFrmPt,
+            reinterpret_cast<fftw_complex*> (sgn),
+            reinterpret_cast<fftw_complex*> (sgn),
+            FFTW_FORWARD, FFTW_MEASURE);
+
     for (j = 0; j < blksz; j++) {
         for (k = 0; k < cFrmPt; k++) {
             fread(&tmp, 4, 1, fp);
             i = pInfo->Scaling * tmp;
             fread(&tmp, 4, 1, fp);
             q = pInfo->Scaling * tmp;
-            sgn[k] = TComplex(i, q);
-            hmag->SetBinContent(j*cFrmPt + k + 1, sgn[k].Rho());
-            hphs->SetBinContent(j*cFrmPt + k + 1, sgn[k].Theta());
+            sgn[k] = complex<double> (i, q);
+            hmag->SetBinContent(j*cFrmPt + k + 1, abs(sgn[k]));
+            hphs->SetBinContent(j*cFrmPt + k + 1, arg(sgn[k]));
         }
         if (!Multitaper(sgn, mtpsd)) return false;
-        if (!FFT(sgn, cFrmPt)) return false;
+        fftw_execute(p);
         for (k = 0; k < bins; k++) {
-            hmtpsd->SetBinContent(k+1, j+1, mtpsd[(cFrmPt-bins/2+k)%cFrmPt]);
-            hfft->SetBinContent(k+1, j+1, sgn[(cFrmPt-bins/2+k)%cFrmPt].Rho());
+            tmp = (cFrmPt - bins/2 + k) % cFrmPt;
+            hfft->SetBinContent(k+1, j+1, norm(sgn[tmp]));
+            hmtpsd->SetBinContent(k+1, j+1, mtpsd[tmp]);
         }
         if (!(j % 10))
             cout << "processing... " << fixed << setw(5) << setprecision(2)
                << right << (double)j/blksz*100 << "%\r" << flush;
     }
-
     cout << endl;
 
-    // Store the spectra
-
-    do_append_to_file(outfile, hmtpsd);
-    do_append_to_file(outfile, hfft);
     do_append_to_file(outfile, hmag);
     do_append_to_file(outfile, hphs);
-
+    do_append_to_file(outfile, hfft);
+    do_append_to_file(outfile, hmtpsd);
 
     delete hmag;
     delete hphs;
-    delete hmtpsd;
     delete hfft;
+    delete hmtpsd;
+    fftw_destroy_plan(p);
+    fftw_free(sgn);
+    free(mtpsd);
     return true;
 }
 
