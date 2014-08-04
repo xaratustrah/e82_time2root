@@ -31,7 +31,6 @@
 #include <TMath.h>
 #include <TMatrixD.h>
 #include <TVectorD.h>
-#include <TComplex.h>
 #include <TDatime.h>
 
 #include "tiq.h"
@@ -48,7 +47,7 @@ void Eigen(void);
 
 /* Seq is a time sequence whose spectral density shall be estimated, and
    PSD stores the estimated power spectral density. */
-bool Multitaper(TComplex Seq[cFrmPt], double PSD[cFrmPt])
+bool Multitaper(complex<double> Seq[cFrmPt], double PSD[cFrmPt])
 {
     FILE* fp = NULL;
     char FileName[32] = {};
@@ -81,7 +80,11 @@ bool Multitaper(TComplex Seq[cFrmPt], double PSD[cFrmPt])
 
     int IdxVec, IdxElem;
     double Norm = .0;
-    TComplex SeqClone[cFrmPt] = {};
+    complex<double> SeqClone[cFrmPt] = {};
+    fftw_plan p = fftw_plan_dft_1d(cFrmPt,
+            reinterpret_cast<fftw_complex*> (SeqClone),
+            reinterpret_cast<fftw_complex*> (SeqClone),
+            FFTW_FORWARD, FFTW_MEASURE);
 
     for (IdxVec = 0; IdxVec < cKMax; IdxVec++)
     {
@@ -90,19 +93,19 @@ bool Multitaper(TComplex Seq[cFrmPt], double PSD[cFrmPt])
         for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++) /* window the sequence */
             SeqClone[IdxElem] = Seq[IdxElem] * EigenVec[IdxVec][IdxElem];
 
-        if (!FFT(SeqClone, cFrmPt)) /* discrete fourier transform */
-            return false;
+        fftw_execute(p); /* discrete fourier transform */
 
         if (IdxVec) /* eigenvalue weighting scheme */
             for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++)
-                PSD[IdxElem] += SeqClone[IdxElem].Rho2() * EigenVal[IdxVec];
+                PSD[IdxElem] += norm(SeqClone[IdxElem]) * EigenVal[IdxVec];
         else
             for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++)
-                PSD[IdxElem] = SeqClone[IdxElem].Rho2() * EigenVal[IdxVec];
+                PSD[IdxElem] = norm(SeqClone[IdxElem]) * EigenVal[IdxVec];
     }
     for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++)
         PSD[IdxElem] /= Norm;
 
+    fftw_destroy_plan(p);
     return true;
 }
 

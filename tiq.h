@@ -28,6 +28,9 @@
 
 #define cFrmPt  1024
 
+#include <complex>
+#include <fftw3.h>
+
 class TDatime;
 class TComplex;
 
@@ -43,11 +46,13 @@ typedef struct
     TDatime DaTm;
 } Info_t;
 
+using namespace std;
+
 /* read general information from a .tiq file header, and store in Info_t */
 bool SetInfo(FILE*, Info_t*);
 /* apply FFT/IFFT to a TComplex array */
-bool FFT(TComplex *, short);
+bool FFT(TComplex*, short);
 /* apply multitaper method for spectral density estimation */
-bool Multitaper(TComplex*, double*);
+bool Multitaper(complex<double>*, double*);
 
 #endif
