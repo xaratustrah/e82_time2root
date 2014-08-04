@@ -11,7 +11,7 @@ STDLIBDIR :=
 endif
 
 CPPFLAGS := $(shell root-config --cflags) $(STDINCDIR)
-LDFLAGS := $(shell root-config --glibs) $(STDLIBDIR) -lgsl -lgslcblas -lm
+LDFLAGS := $(shell root-config --glibs) $(STDLIBDIR) -lgsl -lgslcblas -lfftw3 -lm
 
 CPPFLAGS += -g
 
