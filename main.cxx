@@ -113,8 +113,8 @@ void do_process_iqt(const char * outfile, const char* infile)
     Int_t Npoint = 1024; // Number of points for making one FFT frame
     Int_t first_index = 0;
     complex <Double_t> * iq_data_p = new complex <Double_t> [Npoint];
-    complex<double>* sgn = new complex<double>[cFrmPt];
-    fftw_plan p = fftw_plan_dft_1d(cFrmPt, reinterpret_cast<fftw_complex*> (sgn), reinterpret_cast<fftw_complex*> (sgn), FFTW_FORWARD, FFTW_MEASURE);
+    fftw_complex* sgn = new fftw_complex[cFrmPt];
+    fftw_plan p = fftw_plan_dft_1d(cFrmPt, sgn, sgn, FFTW_FORWARD, FFTW_ESTIMATE);
 
 
     /// for Multitaper, delta_t cover on RSA always 1024 Points
@@ -164,7 +164,8 @@ void do_process_iqt(const char * outfile, const char* infile)
             }
             index++;
             iq_data_p[ip] = iq_value;
-            sgn[ip] = iq_value;
+            sgn[ip][0] = real(iq_value);
+            sgn[ip][1] = imag(iq_value);
 
             // Fill out time histograms
 
@@ -179,7 +180,7 @@ void do_process_iqt(const char * outfile, const char* infile)
         //Multitaper(sgn, mtpsd[i_multi]);
         fftw_execute(p);
         for (int index = 0; index < cFrmPt; index++)
-            fft[i_multi][index] = norm(sgn[index]);
+            fft[i_multi][index] = SQ(sgn[index][0]) + SQ(sgn[index][1]);
 
         // progress bar
         if (!(i_multi % 10))
@@ -277,31 +278,29 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
     //h->GetYaxis()->SetTimeFormat("#splitline{%H:%M:%S}{%d.%m.%y}");
     //h->GetYaxis()->SetTimeOffset(dt->Convert());
 
-    double i, q;
     int j, k, tmp;
     double* mtpsd = (double*) malloc(sizeof(double) * cFrmPt);
-    complex<double>* sgn = (complex<double>*) fftw_malloc(
-            sizeof(complex<double>) * cFrmPt);
-    fftw_plan p = fftw_plan_dft_1d(cFrmPt,
-            reinterpret_cast<fftw_complex*> (sgn),
-            reinterpret_cast<fftw_complex*> (sgn),
-            FFTW_FORWARD, FFTW_MEASURE);
+    fftw_complex* sgn = (fftw_complex*) fftw_malloc(
+            sizeof(fftw_complex) * cFrmPt);
+    fftw_plan p = fftw_plan_dft_1d(cFrmPt, sgn, sgn,
+            FFTW_FORWARD, FFTW_ESTIMATE);
 
     for (j = 0; j < blksz; j++) {
         for (k = 0; k < cFrmPt; k++) {
             fread(&tmp, 4, 1, fp);
-            i = pInfo->Scaling * tmp;
+            sgn[k][0] = pInfo->Scaling * tmp;
             fread(&tmp, 4, 1, fp);
-            q = pInfo->Scaling * tmp;
-            sgn[k] = complex<double> (i, q);
-            hmag->SetBinContent(j*cFrmPt + k + 1, abs(sgn[k]));
-            hphs->SetBinContent(j*cFrmPt + k + 1, arg(sgn[k]));
+            sgn[k][1] = pInfo->Scaling * tmp;
+            hmag->SetBinContent(j*cFrmPt + k + 1,
+                    sqrt(SQ(sgn[k][0]) + SQ(sgn[k][1])));
+            hphs->SetBinContent(j*cFrmPt + k + 1,
+                    atan2(sgn[k][1], sgn[k][0]));
         }
         if (!Multitaper(sgn, mtpsd)) return false;
         fftw_execute(p);
         for (k = 0; k < bins; k++) {
             tmp = (cFrmPt - bins/2 + k) % cFrmPt;
-            hfft->SetBinContent(k+1, j+1, norm(sgn[tmp]));
+            hfft->SetBinContent(k+1, j+1, SQ(sgn[tmp][0])+SQ(sgn[tmp][1]));
             hmtpsd->SetBinContent(k+1, j+1, mtpsd[tmp]);
         }
         if (!(j % 10))

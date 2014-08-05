@@ -7,7 +7,7 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// barion is distributed in the hope that it will be useful,
+// time2root is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
@@ -31,104 +31,86 @@
 #include <TMath.h>
 #include <TMatrixD.h>
 #include <TVectorD.h>
-#include <TDatime.h>
+#include <fftw3.h>
 
-#include "tiq.h"
 
 #define cNW     4
-#define cKMax   (2 * cNW - 1)
+#define cKMax   (2 * cNW - 2)
+#define cFrmPt  1024
+#define SQ(x)   ((x)*(x))
 
-/* Discrete Prolate Spheroidal Sequences */
-static double EigenVec[cKMax][cFrmPt] = {};
-/* energy concentrations for DPSSs */
-static double EigenVal[cKMax] = {};
+/* energy concentration weighted taper sequences */
+static double Taper[cKMax][cFrmPt] = {};
 /* generate DPSSs and corresponding concentrations */
 void Eigen(void);
 
 /* Seq is a time sequence whose spectral density shall be estimated, and
    PSD stores the estimated power spectral density. */
-bool Multitaper(complex<double> Seq[cFrmPt], double PSD[cFrmPt])
-{
-    FILE* fp = NULL;
-    char FileName[32] = {};
-    sprintf(FileName, "km%d_n%d_nw%d.egn", cKMax, cFrmPt, cNW);
+bool Multitaper(fftw_complex Seq[cFrmPt], double PSD[cFrmPt]) {
+    if (!Taper[0][0]) { /* tapers not loaded to memory */
+        fprintf(stdout, "taper sequences not found in memory.\n");
+        FILE* fp = NULL;
+        char FileName[32] = {};
+        sprintf(FileName, "km%d_n%d_nw%d.egn", cKMax, cFrmPt, cNW);
 
-    if (!EigenVal[0]) /* DPSSs not loaded to memory */
-    {
-        fprintf(stdout, "DPSS not found in memory.\n");
-
-        /* generate DPSSs and concentrations, then write to disk */
-        if (!(fp = fopen(FileName, "rb")))
-        {
+        /* generate DPSSs and concentrations, then write tapers to disk */
+        if (!(fp = fopen(FileName, "rb"))) {
             fprintf(stdout, "Generating DPSS right now.\n");
             Eigen();
 
-            fprintf(stdout, "Saving DPSS to disk.\n");
+            fprintf(stdout, "Saving taper sequences to disk.\n");
             fp = fopen(FileName, "wb");
-            fwrite(EigenVec, sizeof(double), cKMax * cFrmPt, fp);
-            fwrite(EigenVal, sizeof(double), cKMax, fp);
+            fwrite(Taper, sizeof(double), cKMax * cFrmPt, fp);
             fclose(fp);
-        }
-        else /* read DPSSs and concentrations from disk */
-        {
-            fprintf(stdout, "Loading DPSS from disk.\n");
-            fread(EigenVec, sizeof(double), cKMax * cFrmPt, fp);
-            fread(EigenVal, sizeof(double), cKMax, fp);
+        } else { /* read DPSSs and concentrations from disk */
+            fprintf(stdout, "Loading taper sequences from disk.\n");
+            fread(Taper, sizeof(double), cKMax * cFrmPt, fp);
             fclose(fp);
         }
     }
 
     int IdxVec, IdxElem;
-    double Norm = .0;
-    complex<double> SeqClone[cFrmPt] = {};
-    fftw_plan p = fftw_plan_dft_1d(cFrmPt,
-            reinterpret_cast<fftw_complex*> (SeqClone),
-            reinterpret_cast<fftw_complex*> (SeqClone),
-            FFTW_FORWARD, FFTW_MEASURE);
-
-    for (IdxVec = 0; IdxVec < cKMax; IdxVec++)
-    {
-        Norm += EigenVal[IdxVec];
-
-        for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++) /* window the sequence */
-            SeqClone[IdxElem] = Seq[IdxElem] * EigenVec[IdxVec][IdxElem];
-
-        fftw_execute(p); /* discrete fourier transform */
-
-        if (IdxVec) /* eigenvalue weighting scheme */
-            for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++)
-                PSD[IdxElem] += norm(SeqClone[IdxElem]) * EigenVal[IdxVec];
-        else
-            for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++)
-                PSD[IdxElem] = norm(SeqClone[IdxElem]) * EigenVal[IdxVec];
-    }
+    fftw_complex* SeqClone = (fftw_complex*) fftw_malloc(
+            sizeof(fftw_complex) * cFrmPt);
+    fftw_plan p = fftw_plan_dft_1d(cFrmPt, SeqClone, SeqClone,
+            FFTW_FORWARD, FFTW_ESTIMATE);
     for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++)
-        PSD[IdxElem] /= Norm;
+        PSD[IdxElem] = .0;
+
+    for (IdxVec = 0; IdxVec < cKMax; IdxVec++) {
+        for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++) { /* tapering */
+            SeqClone[IdxElem][0] = Seq[IdxElem][0] * Taper[IdxVec][IdxElem];
+            SeqClone[IdxElem][1] = Seq[IdxElem][1] * Taper[IdxVec][IdxElem];
+        }
+        fftw_execute(p); /* discrete fourier transform */
+        for (IdxElem = 0; IdxElem < cFrmPt; IdxElem++)
+            PSD[IdxElem] += SQ(SeqClone[IdxElem][0]) + SQ(SeqClone[IdxElem][1]);
+    }
 
     fftw_destroy_plan(p);
+    fftw_free(SeqClone);
     return true;
 }
 
-void Eigen(void)
-{
+void Eigen(void) {
     int i, j;
     double w = (double) cNW / cFrmPt;
     TMatrixDSym A(cFrmPt);
     TMatrixD Vec(cFrmPt, cFrmPt);
     TVectorD Val(cFrmPt);
 
-    for (i = 0; i < cFrmPt; i++)
-    {
+    for (i = 0; i < cFrmPt; i++) {
         A(i, i) = 2 * w;
         for (j = i+1; j < cFrmPt; j++)
             A(i, j) = A(j, i) = TMath::Sin(TMath::TwoPi() * w * (j-i)) /
-                                (TMath::Pi() * (j-i));
+                (TMath::Pi() * (j-i));
     }
     Vec = A.EigenVectors(Val);
+
+    w = .0;
     for (j = 0; j < cKMax; j++)
-    {
-        EigenVal[j] = Val(j);
+        w += Val(j);
+    for (j = 0; j < cKMax; j++)
         for (i = 0; i < cFrmPt; i++)
-            EigenVec[j][i] = Vec(i, j);
-    }
+            Taper[j][i] = Vec(i, j) * TMath::Sqrt(Val(j) / w);
 }

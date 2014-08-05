@@ -19,7 +19,7 @@
 
 /*-----------------------------------------*
  | TIQ Reader for Tektronix RSA5000 Series |
- | Reader for Header   		           |
+ | Reader for Header   		               |
  *-----------------------------------------*/
 
 
@@ -27,15 +27,15 @@
 #define _TIQ_H_
 
 #define cFrmPt  1024
+#define SQ(x)   ((x)*(x))
 
-#include <complex>
+#include <cmath>
 #include <fftw3.h>
 
 class TDatime;
 class TComplex;
 
-typedef struct
-{
+typedef struct {
     const char*   File;
     int     Offset;
     int     NumPt;
@@ -46,13 +46,11 @@ typedef struct
     TDatime DaTm;
 } Info_t;
 
-using namespace std;
-
 /* read general information from a .tiq file header, and store in Info_t */
 bool SetInfo(FILE*, Info_t*);
 /* apply FFT/IFFT to a TComplex array */
 bool FFT(TComplex*, short);
 /* apply multitaper method for spectral density estimation */
-bool Multitaper(complex<double>*, double*);
+bool Multitaper(fftw_complex*, double*);
 
 #endif
