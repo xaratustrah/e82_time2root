@@ -6,6 +6,7 @@ The code consists of two sections:
 
 * The engine **time2root**
 * The visual part **visualizer**
+* Some additional **utilities**
 
 This seperation allows for an automated processing of large amount of data e.g. by using a shell script over several directories without user interaction. The resulting files which contain already calculated spectra, can be viewed with the visualizer in a second step.
 
@@ -19,21 +20,21 @@ Syntax:
 
 The code creates following histograms and store them in a single binary ROOT file. 
 
-Histogram | Description
--|-
-h_iqt_time_mag | IQT time domain magnitude
-h_iqt_time_phs | IQT time domain phase
-h_iqt_mtpsd_fn | IQT multitaper estimation using FN implementation
-h_iqt_mtpsd_xc | IQT multitaper estimation using XC implementation
-h_iqt_fft | IQT standard FFT using XC implementation
-h_tiq_time_mag | TIQ time domain magnitude
-h_tiq_time_phs | TIQ Itime domain phase
-h_tiq_mtpsd | TIQ multitaper estimation using XC implementation
-h_tiq_fft | TIQ Standard FFT using XC implementation
-h_csv_time_C1 | CSV file time domain data channel one
-h_csv_time_C2 | CSV file time domain data channel two
-h_csv_time_C3 | CSV file time domain data channel three
-h_csv_time_C4 | CSV file time domain data channel four
+| histogram | Description |
+| ----- | ------ |
+| h_iqt_time_mag | IQT time domain magnitude |
+| h_iqt_time_phs | IQT time domain phase |
+| h_iqt_mtpsd_fn | IQT multitaper estimation using FN implementation |
+| h_iqt_mtpsd_xc | IQT multitaper estimation using XC implementation | 
+| h_iqt_fft | IQT standard FFT using XC implementation |
+| h_tiq_time_mag | TIQ time domain magnitude |
+| h_tiq_time_phs | TIQ Itime domain phase |
+| h_tiq_mtpsd | TIQ multitaper estimation using XC implementation |
+| h_tiq_fft | TIQ Standard FFT using XC implementation |
+| h_csv_time_C1 | CSV file time domain data channel one |
+| h_csv_time_C2 | CSV file time domain data channel two |
+| h_csv_time_C3 | CSV file time domain data channel three |
+| h_csv_time_C4 | CSV file time domain data channel four |
 
 
 By commenting out in the code, one can of course decide which one of these histograms should actually be written into the file. Proper error handling is provided at the command prompt.
@@ -53,3 +54,15 @@ or
 	./visualizer stack input_filename.root
 	
 The former allows for individual plotting of the histograms, while the keyword **stack** in the latter  causes a plot of stacked histograms made of as many of the 4 CSV channels available.
+
+### Additional Tools
+
+
+#### read_iqt
+
+This is the old read_iqt program that was in use in previous years and has been provided for convenience here, because it shares most of the code.
+
+#### Comparison tool
+
+This code compares the speed of the two different multi-taper implementations.
+
