@@ -50,7 +50,5 @@ typedef struct {
 bool SetInfo(FILE*, Info_t*);
 /* apply FFT/IFFT to a TComplex array */
 bool FFT(TComplex*, short);
-/* apply multitaper method for spectral density estimation */
-bool Multitaper(fftw_complex*, double*);
 
 #endif

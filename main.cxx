@@ -41,6 +41,7 @@
 
 #include "iqtdata.h"
 #include "FritzDPSS.h"
+#include "multitaper.h"
 
 #include "tiq.h"
 
@@ -113,8 +114,8 @@ void do_process_iqt(const char * outfile, const char* infile)
     Int_t Npoint = 1024; // Number of points for making one FFT frame
     Int_t first_index = 0;
     complex <Double_t> * iq_data_p = new complex <Double_t> [Npoint];
-    fftw_complex* sgn = new fftw_complex[cFrmPt];
-    fftw_plan p = fftw_plan_dft_1d(cFrmPt, sgn, sgn, FFTW_FORWARD, FFTW_ESTIMATE);
+    fftw_complex* sgn = new fftw_complex[Npoint];
+    fftw_plan p = fftw_plan_dft_1d(Npoint, sgn, sgn, FFTW_FORWARD, FFTW_ESTIMATE);
 
 
     /// for Multitaper, delta_t cover on RSA always 1024 Points
@@ -130,6 +131,7 @@ void do_process_iqt(const char * outfile, const char* infile)
     Int_t ifmax_multi = 1 + (Npoint * 13) / 16;
     FritzDPSS my_dpss(Npoint, 4);
     my_dpss.GetFromDisk();
+    Multitaper multitaper(Npoint);
 
     Int_t n_of_multi = block_size;
     Int_t i_multi;
@@ -138,8 +140,8 @@ void do_process_iqt(const char * outfile, const char* infile)
     Double_t ** fft = new Double_t * [n_of_multi];
     for (i_multi=0; i_multi < n_of_multi; i_multi++) {
         multi_taper_spektrum[i_multi] = new Double_t [Npoint];
-        //mtpsd[i_multi] = new Double_t [cFrmPt];
-        fft[i_multi] = new Double_t [cFrmPt];
+        //mtpsd[i_multi] = new Double_t [Npoint];
+        fft[i_multi] = new Double_t [Npoint];
     }
 
     i_multi=0;
@@ -177,9 +179,9 @@ void do_process_iqt(const char * outfile, const char* infile)
         // Spectrum calculation
 
         my_dpss.GetSpectrum(iq_data_p, multi_taper_spektrum[i_multi]);
-        //Multitaper(sgn, mtpsd[i_multi]);
+        //multitaper.estimate(sgn, mtpsd[i_multi]);
         fftw_execute(p);
-        for (int index = 0; index < cFrmPt; index++)
+        for (int index = 0; index < Npoint; index++)
             fft[i_multi][index] = SQ(sgn[index][0]) + SQ(sgn[index][1]);
 
         // progress bar
@@ -210,8 +212,8 @@ void do_process_iqt(const char * outfile, const char* infile)
         for (i_multi = 0; i_multi < n_of_multi; i_multi++)
         {
             h_iqt_mtpsd_fn->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, multi_taper_spektrum[i_multi][ifreq] * constant);
-            //h_iqt_mtpsd_xc->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, mtpsd[i_multi][(cFrmPt-ifmax_multi/2-ifmin_multi/2+ifreq)%cFrmPt] * constant);
-            h_iqt_fft->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, fft[i_multi][(cFrmPt-ifmax_multi/2-ifmin_multi/2+ifreq)%cFrmPt] * constant);
+            //h_iqt_mtpsd_xc->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, mtpsd[i_multi][(Npoint-ifmax_multi/2-ifmin_multi/2+ifreq)%Npoint] * constant);
+            h_iqt_fft->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, fft[i_multi][(Npoint-ifmax_multi/2-ifmin_multi/2+ifreq)%Npoint] * constant);
         } 
     }
 
@@ -279,6 +281,7 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
     //h->GetYaxis()->SetTimeOffset(dt->Convert());
 
     int j, k, tmp;
+    Multitaper multitaper(cFrmPt);
     double* mtpsd = (double*) malloc(sizeof(double) * cFrmPt);
     fftw_complex* sgn = (fftw_complex*) fftw_malloc(
             sizeof(fftw_complex) * cFrmPt);
@@ -296,7 +299,7 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
             hphs->SetBinContent(j*cFrmPt + k + 1,
                     atan2(sgn[k][1], sgn[k][0]));
         }
-        if (!Multitaper(sgn, mtpsd)) return false;
+        multitaper.estimate(sgn, mtpsd);
         fftw_execute(p);
         for (k = 0; k < bins; k++) {
             tmp = (cFrmPt - bins/2 + k) % cFrmPt;

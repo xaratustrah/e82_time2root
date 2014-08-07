@@ -17,17 +17,20 @@ CPPFLAGS += -g
 
 TARGET = time2root
 
-SRC = FritzDPSS.cxx iqtdata.cxx main.cxx fft.c multitaper.c setinfo.c
+SRC = FritzDPSS.cxx iqtdata.cxx fft.c multitaper.cxx setinfo.c
 
-OBJ = $(SRC:.cpp=.o)
+OBJ = $(SRC:.cxx=.o)
 
 all : $(TARGET) vis
 
-$(TARGET) : $(OBJ)
-	$(LD) $(CPPFLAGS) -o $(TARGET) $(OBJ) $(LDFLAGS)
+$(TARGET) : main.cxx $(OBJ)
+	$(LD) $(CPPFLAGS) -o $(TARGET) main.cxx $(OBJ) $(LDFLAGS)
 
-%.o : %.cpp
+%.o : %.cxx
 	$(CXX) $(CPPFLAGS) -o $@ -c $<
+
+compare: compare.cxx $(OBJ)
+	$(CXX) $(CPPFLAGS) -o compare compare.cxx $(OBJ) $(LDFLAGS)
 
 clean :
 	rm -f *.o $(TARGET) *~
