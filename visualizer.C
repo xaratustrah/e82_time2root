@@ -26,6 +26,7 @@
 
 // includes for the compiled version
 
+#include <cstdlib>
 #include <TH1D.h>
 #include <TH1.h>
 #include <TH2.h>
@@ -41,62 +42,75 @@
 
 
 //______________________________________________________________________________
-void draw_on_screen(TH1 * h)
+void draw_on_screen(TH1 * h, double begin, double end)
 {
-     // custom palette specially good for number of particles,
-     // or where you have many and few particles in the same spectrum,
-     // in which case log scale is also useful -- D. Shubina 2011
 
-     Int_t MyPalette[100];
-     Double_t r[]    = {1., .9, .0, 0.0, 0.0};
-     Double_t g[]    = {1., .9, 1.0, .0, .0};
-     Double_t b[]    = {1., .9, .8, 1.0, .0};
-     Double_t stop[] = {0., .25, .50, .75, 1.0};
-     Int_t FI = TColor::CreateGradientColorTable(5, stop, r, g, b, 100);
-     for (int i=0;i<100;i++) MyPalette[i] = FI+i;
+    // custom palette specially good for number of particles,
+    // or where you have many and few particles in the same spectrum,
+    // in which case log scale is also useful -- D. Shubina 2011
 
-     //gStyle->SetPalette(100, MyPalette); // use the custom palette above or one of the standard ones below
-     gStyle->SetPalette(1); // Standard color scheme
-     //gStyle->SetPalette(20); // Jet Color scheme
-     //gStyle->SetPalette(500); // Blue Color scheme
+    Int_t MyPalette[100];
+    Double_t r[]    = {1., .9, .0, 0.0, 0.0};
+    Double_t g[]    = {1., .9, 1.0, .0, .0};
+    Double_t b[]    = {1., .9, .8, 1.0, .0};
+    Double_t stop[] = {0., .25, .50, .75, 1.0};
+    Int_t FI = TColor::CreateGradientColorTable(5, stop, r, g, b, 100);
+    for (int i=0;i<100;i++) MyPalette[i] = FI+i;
 
-     TCanvas * c = new TCanvas("c", "Measurements", 1600, 700);
-     c->SetGrid();
-     c->ToggleEditor();
-     c->ToggleEventStatus();
-     c->ToggleToolBar();
+    //gStyle->SetPalette(100, MyPalette); // use the custom palette above or one of the standard ones below
+    gStyle->SetPalette(1); // Standard color scheme
+    //gStyle->SetPalette(20); // Jet Color scheme
+    //gStyle->SetPalette(500); // Blue Color scheme
 
-     int nx, ny, i, j;
-     if (h->GetDimension() == 1) {
-         nx = h->GetNbinsX();
-         TH1F* hcopy = new TH1F(h->GetName(), h->GetTitle(),
-                 nx, h->GetXaxis()->GetBinLowEdge(1), h->GetXaxis()->GetBinUpEdge(nx));
-         hcopy->GetXaxis()->SetTitle(h->GetXaxis()->GetTitle());
-         for (i = 1; i <= nx; i++)
-             hcopy->SetBinContent(i, (Float_t) h->GetBinContent(i));
-         hcopy->Draw("colz");
-     } else {
-         nx = h->GetNbinsX();
-         ny = h->GetNbinsY();
-         TH2F* hcopy = new TH2F(h->GetName(), h->GetTitle(),
-                 nx, h->GetXaxis()->GetBinLowEdge(1), h->GetXaxis()->GetBinUpEdge(nx),
-                 ny, h->GetYaxis()->GetBinLowEdge(1), h->GetYaxis()->GetBinUpEdge(ny));
-         hcopy->GetXaxis()->SetTitle(h->GetXaxis()->GetTitle());
-         hcopy->GetYaxis()->SetTitle(h->GetYaxis()->GetTitle());
-         for (i = 1; i <= nx; i++)
-             for (j = 1; j <= ny; j++)
-                 hcopy->SetBinContent(i, j, (Float_t) h->GetBinContent(i, j));
-         hcopy->Draw("colz");
-     }
+    TCanvas * c = new TCanvas("c", "Measurements", 1600, 700);
+    c->SetGrid();
+    c->ToggleEditor();
+    c->ToggleEventStatus();
+    c->ToggleToolBar();
 
-     //h->Draw("colz");
+    int nx, ny1, ny2, i, j;
+    if (h->GetDimension() == 1) {
+        nx = h->GetNbinsX();
+        TH1F* hcopy = new TH1F(h->GetName(), h->GetTitle(),
+                nx, h->GetXaxis()->GetBinLowEdge(1), h->GetXaxis()->GetBinUpEdge(nx));
+        hcopy->GetXaxis()->SetTitle(h->GetXaxis()->GetTitle());
+        for (i = 1; i <= nx; i++)
+            hcopy->SetBinContent(i, (Float_t) h->GetBinContent(i));
+        hcopy->Draw("colz");
+    } else {
+        nx = h->GetNbinsX();
+        double w = h->GetYaxis()->GetBinWidth(1);
+        if (begin < 0) {
+            cout << "warning: the begin time is underflow" << endl;
+            ny1 = 0;
+        } else {
+            ny1 = (int) (begin / w);
+        }
+        if (end > h->GetYaxis()->GetBinLowEdge(h->GetNbinsY())) {
+            cout << "warning: the end time is overflow" << endl;
+            ny2 = h->GetNbinsY();
+        } else {
+            ny2 = (int) (end / w);
+        }
+        TH2F* hcopy = new TH2F(h->GetName(), h->GetTitle(),
+                nx, h->GetXaxis()->GetBinLowEdge(1), h->GetXaxis()->GetBinUpEdge(nx),
+                ny2 - ny1, ny1 * w, ny2 * w);
+        hcopy->GetXaxis()->SetTitle(h->GetXaxis()->GetTitle());
+        hcopy->GetYaxis()->SetTitle(h->GetYaxis()->GetTitle());
+        for (i = 1; i <= nx; i++)
+            for (j = 1; j <= ny2 - ny1 + 1; j++)
+                hcopy->SetBinContent(i, j, (Float_t) h->GetBinContent(i, j+ny1));
+        hcopy->Draw("colz");
+    }
 
-     c->Modified();
-     c->Update(); // this line updates the canvas automatically, should come after Draw()
-     // The following line to connect the close button of the window manager to the main frame, in order to close properly.
-     ((TRootCanvas *)c->GetCanvasImp())->Connect("CloseWindow()", "TApplication", gApplication, "Terminate()");
+    //h->Draw("colz");
 
-     return;
+    c->Modified();
+    c->Update(); // this line updates the canvas automatically, should come after Draw()
+    // The following line to connect the close button of the window manager to the main frame, in order to close properly.
+    ((TRootCanvas *)c->GetCanvasImp())->Connect("CloseWindow()", "TApplication", gApplication, "Terminate()");
+
+    return;
 }
 
 //______________________________________________________________________________
@@ -200,40 +214,51 @@ inline bool exists (const std::string& name) {
 
 //______________________________________________________________________________
 //
-int main(int argc, char **argv)
-{
-     if (argc != 3){
-     	  cout << "Usage:\n\n";
-      	  cout << "    visualizer histo_name file_name\n\n";
-     	  cout << "or\n\n";
-     	  cout << "    visualizer stack file_name\n\n";
-     	  return 1;
-     }
+int main(int argc, char **argv) {
+    if (argc != 3 && argc != 5){
+        cout << "Usage:\n\n";
+        cout << "    visualizer histo_name file_name\n\n";
+        cout << "or\n\n";
+        cout << "    visualizer histo_name file_name begin_time end_time\n\n";
+        cout << "or\n\n";
+        cout << "    visualizer stack file_name\n\n";
+        return 1;
+    }
 
-     char * which_histo;
-     char * filename;
+    char * which_histo;
+    char * filename;
+    double begin = 1;
+    double end = 0;
 
-     which_histo = argv[1];
-     filename = argv[2];
-
-     if (!exists(argv[2])) {cout << "No such file " << argv[2] << "\nAborting ... \n" << endl; return 2;}
-
-     TApplication theApp("theApp", &argc, argv);
-
-     if(!strcmp(which_histo, "stack"))
-	  draw_stack(filename);
-     else{
-     TH1 * h = do_read_from_file(filename, which_histo);
-     if(h == 0) return 3;
-     cout << "Showing plot " << which_histo << " from file " << filename << "." << endl;
-     draw_on_screen(h);
-
-     }
+    which_histo = argv[1];
+    filename = argv[2];
+    if (argc == 5) {
+        begin = atof(argv[3]);
+        end = atof(argv[4]);
+    }
 
 
-     theApp.Run();
+    if (!exists(argv[2])) {cout << "No such file " << argv[2] << "\nAborting ... \n" << endl; return 2;}
 
-     return 0;
+    TApplication theApp("theApp", &argc, argv);
+
+    if(!strcmp(which_histo, "stack"))
+        draw_stack(filename);
+    else{
+        TH1 * h = do_read_from_file(filename, which_histo);
+        if(h == 0) return 3;
+        cout << "Showing plot " << which_histo << " from file " << filename << "." << endl;
+        if (begin > end)
+            draw_on_screen(h, 0, h->GetYaxis()->GetBinLowEdge(h->GetNbinsY()));
+        else
+            draw_on_screen(h, begin, end);
+
+    }
+
+
+    theApp.Run();
+
+    return 0;
 }
 
 
