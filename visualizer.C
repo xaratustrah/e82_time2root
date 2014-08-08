@@ -28,6 +28,7 @@
 
 #include <TH1D.h>
 #include <TH1.h>
+#include <TH2.h>
 #include <TFile.h>
 #include <TCanvas.h>
 #include <TRootCanvas.h>
@@ -65,7 +66,30 @@ void draw_on_screen(TH1 * h)
      c->ToggleEventStatus();
      c->ToggleToolBar();
 
-     h->Draw("colz");
+     int nx, ny, i, j;
+     if (h->GetDimension() == 1) {
+         nx = h->GetNbinsX();
+         TH1F* hcopy = new TH1F(h->GetName(), h->GetTitle(),
+                 nx, h->GetXaxis()->GetBinLowEdge(1), h->GetXaxis()->GetBinUpEdge(nx));
+         hcopy->GetXaxis()->SetTitle(h->GetXaxis()->GetTitle());
+         for (i = 1; i <= nx; i++)
+             hcopy->SetBinContent(i, (Float_t) h->GetBinContent(i));
+         hcopy->Draw("colz");
+     } else {
+         nx = h->GetNbinsX();
+         ny = h->GetNbinsY();
+         TH2F* hcopy = new TH2F(h->GetName(), h->GetTitle(),
+                 nx, h->GetXaxis()->GetBinLowEdge(1), h->GetXaxis()->GetBinUpEdge(nx),
+                 ny, h->GetYaxis()->GetBinLowEdge(1), h->GetYaxis()->GetBinUpEdge(ny));
+         hcopy->GetXaxis()->SetTitle(h->GetXaxis()->GetTitle());
+         hcopy->GetYaxis()->SetTitle(h->GetYaxis()->GetTitle());
+         for (i = 1; i <= nx; i++)
+             for (j = 1; j <= ny; j++)
+                 hcopy->SetBinContent(i, j, (Float_t) h->GetBinContent(i, j));
+         hcopy->Draw("colz");
+     }
+
+     //h->Draw("colz");
 
      c->Modified();
      c->Update(); // this line updates the canvas automatically, should come after Draw()
