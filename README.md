@@ -47,13 +47,18 @@ If compiled, it accepts the names of the histogram followed by the name of the r
 
 Syntax:
 
-	./visualizer histogram_name input_filename.root
+    ./visualizer histo_name file_name
 
 or
 
-	./visualizer stack input_filename.root
+    ./visualizer histo_name file_name begin_time end_time
+
+or
+
+    ./visualizer stack file_name
+
 	
-The former allows for individual plotting of the histograms, while the keyword **stack** in the latter  causes a plot of stacked histograms made of as many of the 4 CSV channels available.
+The first one allows for individual plotting of the histograms. The second is the same as the first, but allows selection of time in units of seconds. This is mosly useful when the files are large and one is interested in a portion only. The last syntax uses the keyword **stack**, which causes a plot of stacked histograms made of as many of the 4 CSV channels available.
 
 ### Additional Tools
 
