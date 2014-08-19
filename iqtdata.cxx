@@ -1,6 +1,7 @@
 //
 // (c) Copyright:
 // F. Nolden 2008 - 2009
+// X. Chen 2014
 //
 // this is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -442,6 +443,7 @@ int IQData__TekRSA3303B::Aufdroeseln(string zeile) {
 	  else return 0;
 	}
 	else if (name == "DateTime") {
+        DecodeDateTime(mDateTime, inhalt);
 		cout << "Aufnahmedatum: " << inhalt << endl;
 	} 
 	else if (name == "GainOffset") {
@@ -480,6 +482,13 @@ int IQData__TekRSA3303B::Aufdroeseln(string zeile) {
 	  else return 0;
 	}
 	return 1;
+}
+void IQData__TekRSA3303B::DecodeDateTime(char* ca, string s) {
+    for (int i = 0; i < 19; i++)
+        ca[i] = s[i];
+    ca[4] = ca[7] = '-';
+    ca[10] = ' ';
+    ca[19] = '\0';
 }
 //
 //               IQData__TekRSA3303B::Ganzzahl()

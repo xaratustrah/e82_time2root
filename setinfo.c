@@ -74,6 +74,7 @@ bool SetInfo(FILE *fp, Info_t *pInfo) {
                 countdown--;
             } else if (key.EqualTo("Scaling")) {
                 GetValue(fp, info);
+                //pInfo->Scaling = sqrt(info->Atof());
                 pInfo->Scaling = info->Atof();
                 countdown--;
             } else if (key.EqualTo("DateTime")) {

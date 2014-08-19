@@ -42,6 +42,7 @@
 #include "iqtdata.h"
 #include "FritzDPSS.h"
 #include "multitaper.h"
+#include "header.h"
 
 #include "tiq.h"
 
@@ -49,17 +50,18 @@ using namespace std;
 
 
 //______________________________________________________________________________
-void do_append_to_file(const char * filename, TH1* histo) // TH1 is the mother of all histos
+void do_append_to_file(const char * filename, TNamed* obj)
 {
     TFile f (filename, "update");
-    if(f.GetListOfKeys()->Contains(histo->GetName()))
+    if(f.GetListOfKeys()->Contains(obj->GetName()))
     {
-        cout << "A histogram with the same name already exists in the root file. No overwrite!" << endl;
-        return;
+        cout << "An object with the same name `" << obj->GetName() <<
+            "' already exists in the file `" << filename << "'. No overwrite!" << endl;
+        return; 
     }
-    histo->Write();
+    obj->Write();
     f.Close();
-    cout << "Histogram " << histo->GetName() << " successfully written to file " << filename << endl;
+    cout << "Object `" << obj->GetName() << "' successfully written to file `" << filename << "'" << endl;
     return;
 }
 
@@ -86,6 +88,14 @@ void do_process_iqt(const char * outfile, const char* infile)
         cout << "Program stopped." << endl;
         exit(0);
     }
+
+    Header* iqt_header = new Header("iqt_header", infile);
+    iqt_header->SetValidFrames(my_iq_data.ValidFrames());
+    iqt_header->SetFrameLength(my_iq_data.FrameLength());
+    iqt_header->SetCenterFrequency(my_iq_data.CenterFrequency());
+    iqt_header->SetSpan(my_iq_data.Span());
+    iqt_header->SetGainOffset(my_iq_data.GainOffset());
+    iqt_header->SetDateTime(my_iq_data.DateTime());
 
     // Fill out the constants
 
@@ -220,6 +230,7 @@ void do_process_iqt(const char * outfile, const char* infile)
 
     // Store the spectra
 
+    do_append_to_file(outfile, iqt_header);
     do_append_to_file(outfile, h_iqt_mtpsd_fn);
     //do_append_to_file(outfile, h_iqt_mtpsd_xc);
     do_append_to_file(outfile, h_iqt_fft);
@@ -229,6 +240,7 @@ void do_process_iqt(const char * outfile, const char* infile)
 
     // clean up
 
+    delete iqt_header;
     fftw_destroy_plan(p);
     for (i_multi=0; i_multi < n_of_multi; i_multi++) {
         delete [] multi_taper_spektrum[i_multi];
@@ -255,14 +267,21 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
     int bins = pInfo->Span * pInfo->Intvl * cFrmPt;
     int blksz = pInfo->NumPt / cFrmPt;
     pInfo->NumPt = blksz * cFrmPt;
-    //TDatime* dt = &pInfo->DaTm;
     cout << "number of points: " << pInfo->NumPt << endl;
     cout << "center frequency: " << pInfo->CenFreq << " Hz" << endl;
     cout << "acquisition bandwidth: " << pInfo->Span << " Hz" << endl;
 
-    TH1D* hmag = new TH1D("h_tiq_time_mag", "magnitude", pInfo->NumPt,
+    Header* tiq_header = new Header("tiq_header", pInfo->File);
+    tiq_header->SetValidFrames(blksz); 
+    tiq_header->SetFrameLength(cFrmPt * pInfo->Intvl);
+    tiq_header->SetCenterFrequency(pInfo->CenFreq);
+    tiq_header->SetSpan(pInfo->Span);
+    tiq_header->SetScaling(pInfo->Scaling);
+    tiq_header->SetDateTime(pInfo->DaTm.AsSQLString());
+
+    TH1D* hmag = new TH1D("h_tiq_time_mag", pInfo->File, pInfo->NumPt,
             0, pInfo->NumPt * pInfo->Intvl);
-    TH1D* hphs = new TH1D("h_tiq_time_phs", "phase", pInfo->NumPt,
+    TH1D* hphs = new TH1D("h_tiq_time_phs", pInfo->File, pInfo->NumPt,
             0, pInfo->NumPt * pInfo->Intvl);
     TH2D* hmtpsd = new TH2D("h_tiq_mtpsd",
             Form("%s;frequency[Hz] (%g[Hz/bin]);time[s] (%g[s/bin]);"
@@ -312,11 +331,13 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
     }
     cout << endl;
 
+    do_append_to_file(outfile, tiq_header);
     do_append_to_file(outfile, hmag);
     do_append_to_file(outfile, hphs);
     do_append_to_file(outfile, hfft);
     do_append_to_file(outfile, hmtpsd);
 
+    delete tiq_header;
     delete hmag;
     delete hphs;
     delete hfft;

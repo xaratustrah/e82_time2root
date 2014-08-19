@@ -1,6 +1,7 @@
 //
 // (c) Copyright:
 // F. Nolden 2008 - 2009
+// X. Chen 2014
 //
 // this is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -47,8 +48,11 @@ class  IQData__TekRSA3303B {
         int Bins() const {return mBins;};
         int BlockSize() const {return mBlockSize;};
         int ValidFrames() const {return mValidFrames;};
+        double FrameLength() const {return mFrameLength;};
+        double GainOffset() const {return mGainOffset;};
         double CenterFrequency() const {return mCenterFrequency;};
         double Span() const {return mSpan;};
+        const char* DateTime() const {return mDateTime;};
         ifstream * IQFileP() const {return mIQFileP;};
 	private:
         IQData__TekRSA3303B (const IQData__TekRSA3303B&); /* never defined */
@@ -57,21 +61,23 @@ class  IQData__TekRSA3303B {
 	int Aufdroeseln(string);
         int DecodeInt(int&, string);
 	int DecodeDouble(double&, string);
+        void DecodeDateTime(char*, string);
         int GetFrameNumber(int&, int);
         // private members
         // aus IQ-File direkt eingelesen
+        char mDateTime[20];
         int mBins;
         double mMaxInputLevel;
         double mLevelOffset;
-        double mCenterFrequency;
+        double mCenterFrequency; // Hz
         double mFrequencyOffset;
-        double mSpan;
+        double mSpan; // Hz
         int mBlockSize;
         int mValidFrames;
         double mFramePeriod;
         double mUnitPeriod;
-        double mFrameLength;
-        double mGainOffset;
+        double mFrameLength; // s
+        double mGainOffset; // dB
         int mMultiFrames;
         int mMultiAddr;
 	double mIOffset;

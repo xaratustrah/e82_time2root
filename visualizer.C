@@ -27,6 +27,7 @@
 // includes for the compiled version
 
 #include <cstdlib>
+#include <cstring>
 #include <TH1D.h>
 #include <TH1.h>
 #include <TH2.h>
@@ -39,6 +40,7 @@
 #include <TColor.h>
 #include <THStack.h>
 #include <Riostream.h>
+#include "header.h"
 
 
 //______________________________________________________________________________
@@ -129,6 +131,23 @@ void compare(TH1* h1, TH1* h2) {
 }
 
 //______________________________________________________________________________
+TH1 * do_read_from_file(const char* filename, const char * histo_name, Header) // TH1 is the mother of all histos
+{
+     TFile f (filename, "read");
+     if(!f.GetListOfKeys()->Contains(histo_name))
+     {
+	  cout << "The binary file does not contain a histogram with the name of " << histo_name << "." << endl;
+	  cout << "Try one of the following:\n\n";
+	  f.GetListOfKeys()->ls();
+	  return 0;
+     }
+     TH1 * h = (TH1*)f.Get(histo_name);
+     h->SetDirectory(0);	// magic! histo should not belong to any directory in memory
+     f.Close();
+     return h;
+}
+
+//______________________________________________________________________________
 TH1 * do_read_from_file(const char* filename, const char * histo_name) // TH1 is the mother of all histos
 {
      TFile f (filename, "read");
@@ -139,6 +158,12 @@ TH1 * do_read_from_file(const char* filename, const char * histo_name) // TH1 is
 	  f.GetListOfKeys()->ls();
 	  return 0;
      }
+
+     Header* header = NULL;
+     const char* pch = NULL;
+     if ((pch = strstr(histo_name, "iqt")) && (header = (Header*) f.Get("iqt_header"))) header->Show();
+     if ((pch = strstr(histo_name, "tiq")) && (header = (Header*) f.Get("tiq_header"))) header->Show();
+
      TH1 * h = (TH1*)f.Get(histo_name);
      h->SetDirectory(0);	// magic! histo should not belong to any directory in memory
      f.Close();
@@ -236,7 +261,6 @@ int main(int argc, char **argv) {
         begin = atof(argv[3]);
         end = atof(argv[4]);
     }
-
 
     if (!exists(argv[2])) {cout << "No such file " << argv[2] << "\nAborting ... \n" << endl; return 2;}
 
