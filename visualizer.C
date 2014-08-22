@@ -167,6 +167,7 @@ TH1* do_read_from_file(const char* filename, const char* histo_name) // TH1 is t
     } else {
         Header* header = (Header*) gDirectory->Get(Form("%s_header", dir.c_str()));
         header->Show();
+	cout << "Data from instrument " << dir << endl;
         h = (TH1*)gDirectory->Get(histo_name);
         h->SetDirectory(0);
     }
