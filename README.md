@@ -36,6 +36,7 @@ The code creates following histograms and store them in a single binary ROOT fil
 | h_csv_time_C3 | CSV file time domain data channel three |
 | h_csv_time_C4 | CSV file time domain data channel four |
 
+In addition, two instances of user-defined class *Header*, used as containers for some important information in the IQT/TIQ file header, are saved to the same ROOT file. Later on users can retrieve the values by *Getter* methods after the ROOT file is loaded from the disk.
 
 By commenting out in the code, one can of course decide which one of these histograms should actually be written into the file. Proper error handling is provided at the command prompt.
 
