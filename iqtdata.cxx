@@ -483,11 +483,21 @@ int IQData__TekRSA3303B::Aufdroeseln(string zeile) {
 	}
 	return 1;
 }
+
 void IQData__TekRSA3303B::DecodeDateTime(char* ca, string s) {
-    for (int i = 0; i < 19; i++)
-        ca[i] = s[i];
-    ca[4] = ca[7] = '-';
+    for (int i = 0; i < 10; i++) { // date
+        if (s[i] >= '0' && s[i] <= '9')
+            ca[i] = s[i];
+        else
+            ca[i] = '-';
+    }
     ca[10] = ' ';
+    for (int i = 11; i < 19; i++) { // time
+        if ((s[i] >= '0' && s[i] <= '9') || s[i] == ':')
+            ca[i] = s[i];
+        else
+            ca[i] = '\0';
+    }
     ca[19] = '\0';
 }
 //

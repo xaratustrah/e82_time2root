@@ -36,14 +36,15 @@ class TDatime;
 class TComplex;
 
 typedef struct {
-    const char*   File;
-    int     Offset;
-    int     NumPt;
-    double  Scaling;
-    double  Intvl; /* second */
-    double  CenFreq; /* Hz */
-    double  Span; /* Hz */
-    TDatime DaTm;
+    const char* File;
+    char        ID[8];
+    int         Offset;
+    int         NumPt;
+    double      Scaling;
+    double      Intvl; /* second */
+    double      CenFreq; /* Hz */
+    double      Span; /* Hz */
+    TDatime     DaTm;
 } Info_t;
 
 /* read general information from a .tiq file header, and store in Info_t */

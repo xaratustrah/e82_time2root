@@ -34,10 +34,12 @@ void    GetAttrib(FILE*, TString*, int);
 void    GetValue(FILE*, TString*);
 /* get the TDatime from a TString */
 TDatime GetDaTm(TString*);
+/* get the ID from a TString */
+void    GetID(TString*, char*);
 
 bool SetInfo(FILE *fp, Info_t *pInfo) {
     char c;
-    int countdown = 8;
+    int countdown = 9;
     int nsmpl, nfrm;
     TString key;
     TString* info = new TString();
@@ -74,7 +76,6 @@ bool SetInfo(FILE *fp, Info_t *pInfo) {
                 countdown--;
             } else if (key.EqualTo("Scaling")) {
                 GetValue(fp, info);
-                //pInfo->Scaling = sqrt(info->Atof());
                 pInfo->Scaling = info->Atof();
                 countdown--;
             } else if (key.EqualTo("DateTime")) {
@@ -89,7 +90,12 @@ bool SetInfo(FILE *fp, Info_t *pInfo) {
                 GetValue(fp, info);
                 pInfo->Span = info->Atof();
                 countdown--;
+            } else if (key.EqualTo("SerialNumber")) {
+                GetValue(fp, info);
+                GetID(info, pInfo->ID);
+                countdown--;
             }
+
         }
     }
     delete info;
@@ -126,4 +132,12 @@ TDatime GetDaTm(TString* s) {
     s->Replace(10, 1, " ");
     TString t((*s)(0, 19));
     return TDatime(t.Data());
+}
+
+void GetID(TString* s, char* id) {
+    int i;
+    const char* ps = s->Data();
+    for (i = 0; i < 7; i++)
+        id[i] = ps[i];
+    id[7] = '\0';
 }

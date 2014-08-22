@@ -30,6 +30,7 @@ Header::Header(const Header& h) : TNamed(h) {
     fGainOffset = h.fGainOffset;
     fScaling = h.fScaling;
     SetDateTime(h.GetDateTime());
+    SetSerialNumber(h.GetSerialNumber());
 }
 
 Header& Header::operator=(const Header& rhs) {
@@ -42,6 +43,7 @@ Header& Header::operator=(const Header& rhs) {
         fGainOffset = rhs.fGainOffset;
         fScaling = rhs.fScaling;
         SetDateTime(rhs.GetDateTime());
+        SetSerialNumber(rhs.GetSerialNumber());
     }
     return *this;
 }
@@ -50,6 +52,12 @@ void Header::SetDateTime(const char* s) {
     for (int i = 0; i < 19; i++)
         fDateTime[i] = s[i];
     fDateTime[19] = '\0';
+}
+
+void Header::SetSerialNumber(const char* s) {
+    for (int i = 0; i < 7; i++)
+        fSerialNumber[i] = s[i];
+    fSerialNumber[7] = '\0';
 }
 
 void Header::ShowValidFrames() const {
@@ -82,4 +90,12 @@ void Header::ShowScaling() const {
 
 void Header::ShowDateTime() const {
     cout << "Date and Time: " << fDateTime << endl;
+}
+
+void Header::ShowSerialNumber() const {
+    for (int i = 0; i < 7; i++)
+        if (fSerialNumber[i] != 'x') {
+            cout << "Serial Number: " << fSerialNumber << endl;
+            return;
+        }
 }

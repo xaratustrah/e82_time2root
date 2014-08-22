@@ -1,6 +1,6 @@
 //
 // (c) Copyright:
-// X. Chen and M. S. Sanjari 2014
+// X. Chen, M. S. Sanjari and P. Buehler 2014
 // N. Winckler and M. S. Sanjari 2010 - 2012
 // F. Nolden 2009
 //
@@ -43,31 +43,41 @@
 #include "FritzDPSS.h"
 #include "multitaper.h"
 #include "header.h"
-
 #include "tiq.h"
 
 using namespace std;
 
 
 //______________________________________________________________________________
-void do_append_to_file(const char * filename, TNamed* obj)
+void do_append_to_file(const char* filename, TNamed* obj)
 {
-    TFile f (filename, "update");
-    if(f.GetListOfKeys()->Contains(obj->GetName()))
-    {
-        cout << "An object with the same name `" << obj->GetName() <<
+    TFile f(filename, "update");
+    string dir(obj->GetName(), 5);
+
+    if (!gFile->GetDirectory(dir.c_str()))
+        gFile->mkdir(dir.c_str());
+    gDirectory->cd(dir.c_str());
+    if (gDirectory->GetKey(obj->GetName())) {
+        cout <<"An object with the same name `" << obj->GetName() <<
             "' already exists in the file `" << filename << "'. No overwrite!" << endl;
-        return; 
+        return;
     }
-    obj->Write();
-    f.Close();
-    cout << "Object `" << obj->GetName() << "' successfully written to file `" << filename << "'" << endl;
-    return;
+
+    if (gDirectory->WriteTObject(obj)) {
+        cout << "Object `" << obj->GetName() << "' successfully written to file `" << filename << "'" << endl;
+        f.Close();
+        return;
+    }
+    else {
+        cerr << "Object `" << obj->GetName() << "' failed to be written to file `" << filename << "'" << endl;
+        f.Close();
+        exit(EXIT_FAILURE);
+    }
 }
 
-
 //______________________________________________________________________________
-void do_process_iqt(const char * outfile, const char* infile)
+void do_process_iqt(const char* outfile, const char* infile, const char* basename,
+        Int_t ntap, bool* towrite)
 {
     IQData__TekRSA3303B my_iq_data;
 
@@ -77,7 +87,7 @@ void do_process_iqt(const char * outfile, const char* infile)
     if (!my_iq_data.ReadFile(infile))
     {
         cout << "Error reading file." << endl;
-        exit(0);
+        exit(EXIT_FAILURE);
     }
 
     Double_t delta_t;
@@ -86,16 +96,16 @@ void do_process_iqt(const char * outfile, const char* infile)
     {
         cout << "Error during the check of time interval" << endl;
         cout << "Program stopped." << endl;
-        exit(0);
+        exit(EXIT_FAILURE);
     }
 
-    Header* iqt_header = new Header("iqt_header", infile);
-    iqt_header->SetValidFrames(my_iq_data.ValidFrames());
-    iqt_header->SetFrameLength(my_iq_data.FrameLength());
-    iqt_header->SetCenterFrequency(my_iq_data.CenterFrequency());
-    iqt_header->SetSpan(my_iq_data.Span());
-    iqt_header->SetGainOffset(my_iq_data.GainOffset());
-    iqt_header->SetDateTime(my_iq_data.DateTime());
+    Header* header = new Header("RSA30_header", basename);
+    header->SetValidFrames(my_iq_data.ValidFrames());
+    header->SetFrameLength(my_iq_data.FrameLength());
+    header->SetCenterFrequency(my_iq_data.CenterFrequency());
+    header->SetSpan(my_iq_data.Span());
+    header->SetGainOffset(my_iq_data.GainOffset());
+    header->SetDateTime(my_iq_data.DateTime());
 
     // Fill out the constants
 
@@ -114,7 +124,7 @@ void do_process_iqt(const char * outfile, const char* infile)
             << "  Frames with each 1024 Points, only "
             << valid_frames << " are valid." << endl;
         cout << "Program stopped." << endl;
-        exit(0);
+        exit(EXIT_FAILURE);
     }
 
     cout << "There are " << block_size*1024 << " measured points in total." << endl;
@@ -137,20 +147,17 @@ void do_process_iqt(const char * outfile, const char* infile)
 
     Double_t start_frequency = center_frequency - Npoint * dfreq_multi / 2.;
     Int_t ifmin_multi = (Npoint * 3) / 16;
-
     Int_t ifmax_multi = 1 + (Npoint * 13) / 16;
-    FritzDPSS my_dpss(Npoint, 4);
+    Int_t nw = (ntap + 2) / 2;
+    FritzDPSS my_dpss(Npoint, nw);
     my_dpss.GetFromDisk();
-    Multitaper multitaper(Npoint);
 
     Int_t n_of_multi = block_size;
     Int_t i_multi;
     Double_t ** multi_taper_spektrum = new Double_t * [n_of_multi]; 
-    //Double_t ** mtpsd = new Double_t * [n_of_multi];
     Double_t ** fft = new Double_t * [n_of_multi];
     for (i_multi=0; i_multi < n_of_multi; i_multi++) {
         multi_taper_spektrum[i_multi] = new Double_t [Npoint];
-        //mtpsd[i_multi] = new Double_t [Npoint];
         fft[i_multi] = new Double_t [Npoint];
     }
 
@@ -158,8 +165,8 @@ void do_process_iqt(const char * outfile, const char* infile)
 
     // define time histograms
 
-    TH1D * h_iqt_time_abs = new TH1D("h_iqt_time_mag", Form("%s;Time [s];Magnitude [a.u.]", infile), 1024 * n_of_multi, 0, n_of_multi * dtm);
-    TH1D * h_iqt_time_arg = new TH1D("h_iqt_time_phs", Form("%s;Time [s];Phase [a.u.]", infile), 1024 * n_of_multi, 0, n_of_multi * dtm);
+    TH1D * hmag = new TH1D("RSA30_mag", Form("%s;Time [s];Magnitude [a.u.]", basename), 1024 * n_of_multi, 0, n_of_multi * dtm);
+    TH1D * hphs = new TH1D("RSA30_phs", Form("%s;Time [s];Phase [a.u.]", basename), 1024 * n_of_multi, 0, n_of_multi * dtm);
 
     for (first_index=0; first_index <= 1024 * (n_of_multi-1); first_index += 1024)
     {
@@ -171,7 +178,7 @@ void do_process_iqt(const char * outfile, const char* infile)
             if (!my_iq_data.GetIQ(iq_value, index))
             {
                 cout << "Error retrieving the value at index " << index << endl;
-                exit(0);
+                exit(EXIT_FAILURE);
 
             }
             index++;
@@ -181,15 +188,14 @@ void do_process_iqt(const char * outfile, const char* infile)
 
             // Fill out time histograms
 
-            h_iqt_time_abs->SetBinContent(index + ip, abs(iq_value));
-            h_iqt_time_arg->SetBinContent(index + ip, arg(iq_value));
+            hmag->SetBinContent(index + ip, abs(iq_value));
+            hphs->SetBinContent(index + ip, arg(iq_value));
 
         }
 
         // Spectrum calculation
 
         my_dpss.GetSpectrum(iq_data_p, multi_taper_spektrum[i_multi]);
-        //multitaper.estimate(sgn, mtpsd[i_multi]);
         fftw_execute(p);
         for (int index = 0; index < Npoint; index++)
             fft[i_multi][index] = SQ(sgn[index][0]) + SQ(sgn[index][1]);
@@ -211,9 +217,10 @@ void do_process_iqt(const char * outfile, const char* infile)
 
     // Create the 2D histogram
 
-    TH2D *h_iqt_mtpsd_fn = new TH2D("h_iqt_mtpsd_fn",Form("%s;Frequency[Hz] (%g [Hz/bin]);Time [s] (%g [s/bin]);Intensity [a.u.]", infile, dfreq_multi, delta_t),binf,fstart,fend,bint,0.0,(Double_t)(bint)*delta_t);
-    //TH2D *h_iqt_mtpsd_xc = new TH2D("h_iqt_mtpsd_xc",Form("%s;Frequency[Hz] (%g [Hz/bin]);Time [s] (%g [s/bin]);Intensity [a.u.]", infile, dfreq_multi, delta_t),binf,fstart,fend,bint,0.0,(Double_t)(bint)*delta_t);
-    TH2D * h_iqt_fft = new TH2D("h_iqt_fft",Form("%s;Frequency[Hz] (%g [Hz/bin]);Time [s] (%g [s/bin]);Intensity [a.u.]", infile, dfreq_multi, delta_t),binf,fstart,fend,bint,0.0,(Double_t)(bint)*delta_t);
+    // add number_of_tapers to the histogram name
+
+    TH2D* hmtpsd = new TH2D(Form("RSA30_mtpsd%d", ntap),Form("%s;Frequency[Hz] (%g [Hz/bin]);Time [s] (%g [s/bin]);Intensity [a.u.]", basename, dfreq_multi, delta_t),binf,fstart,fend,bint,0.0,(Double_t)(bint)*delta_t);
+    TH2D* hfft = new TH2D("RSA30_fft",Form("%s;Frequency[Hz] (%g [Hz/bin]);Time [s] (%g [s/bin]);Intensity [a.u.]", basename, dfreq_multi, delta_t),binf,fstart,fend,bint,0.0,(Double_t)(bint)*delta_t);
 
     // constant of multiplication for z axis
     Double_t constant = 1.0;
@@ -221,48 +228,41 @@ void do_process_iqt(const char * outfile, const char* infile)
     {
         for (i_multi = 0; i_multi < n_of_multi; i_multi++)
         {
-            h_iqt_mtpsd_fn->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, multi_taper_spektrum[i_multi][ifreq] * constant);
-            //h_iqt_mtpsd_xc->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, mtpsd[i_multi][(Npoint-ifmax_multi/2-ifmin_multi/2+ifreq)%Npoint] * constant);
-            h_iqt_fft->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, fft[i_multi][(Npoint-ifmax_multi/2-ifmin_multi/2+ifreq)%Npoint] * constant);
+            hmtpsd->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, multi_taper_spektrum[i_multi][ifreq] * constant);
+            hfft->SetBinContent(ifreq-ifmin_multi+1,i_multi+1, fft[i_multi][(Npoint-ifmax_multi/2-ifmin_multi/2+ifreq)%Npoint] * constant);
         } 
     }
 
 
     // Store the spectra
 
-    do_append_to_file(outfile, iqt_header);
-    do_append_to_file(outfile, h_iqt_mtpsd_fn);
-    //do_append_to_file(outfile, h_iqt_mtpsd_xc);
-    do_append_to_file(outfile, h_iqt_fft);
-    do_append_to_file(outfile, h_iqt_time_abs);
-    do_append_to_file(outfile, h_iqt_time_arg);
-
+    do_append_to_file(outfile, header); // header is written in any case
+    if (towrite[0]) do_append_to_file(outfile, hmtpsd);
+    if (towrite[1]) do_append_to_file(outfile, hfft);
+    if (towrite[2]) do_append_to_file(outfile, hmag);
+    if (towrite[3]) do_append_to_file(outfile, hphs);
 
     // clean up
 
-    delete iqt_header;
+    delete header;
+    delete hmtpsd;
+    delete hfft;
+    delete hmag;
+    delete hphs;
     fftw_destroy_plan(p);
     for (i_multi=0; i_multi < n_of_multi; i_multi++) {
         delete [] multi_taper_spektrum[i_multi];
-        //delete [] mtpsd[i_multi];
         delete [] fft[i_multi];
     }
     delete [] multi_taper_spektrum;
-    //delete [] mtpsd;
     delete [] fft;
     delete [] iq_data_p;
     delete [] sgn;
-    delete h_iqt_mtpsd_fn;
-    //delete h_iqt_mtpsd_xc;
-    delete h_iqt_fft;
-    delete h_iqt_time_abs;
-    delete h_iqt_time_arg;
 
-    return ;
 }
 
 //______________________________________________________________________________
-bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
+bool do_process_tiq(const char* outfile, FILE* fp, Info_t* pInfo, int ntap, bool* towrite) {
     fseek(fp, pInfo->Offset, SEEK_SET);
     int bins = pInfo->Span * pInfo->Intvl * cFrmPt;
     int blksz = pInfo->NumPt / cFrmPt;
@@ -271,25 +271,33 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
     cout << "center frequency: " << pInfo->CenFreq << " Hz" << endl;
     cout << "acquisition bandwidth: " << pInfo->Span << " Hz" << endl;
 
-    Header* tiq_header = new Header("tiq_header", pInfo->File);
-    tiq_header->SetValidFrames(blksz); 
-    tiq_header->SetFrameLength(cFrmPt * pInfo->Intvl);
-    tiq_header->SetCenterFrequency(pInfo->CenFreq);
-    tiq_header->SetSpan(pInfo->Span);
-    tiq_header->SetScaling(pInfo->Scaling);
-    tiq_header->SetDateTime(pInfo->DaTm.AsSQLString());
+    Header* header = new Header("", pInfo->File);
+    header->SetValidFrames(blksz); 
+    header->SetFrameLength(cFrmPt * pInfo->Intvl);
+    header->SetCenterFrequency(pInfo->CenFreq);
+    header->SetSpan(pInfo->Span);
+    header->SetScaling(pInfo->Scaling);
+    header->SetDateTime(pInfo->DaTm.AsSQLString());
+    header->SetSerialNumber(pInfo->ID);
 
-    TH1D* hmag = new TH1D("h_tiq_time_mag", pInfo->File, pInfo->NumPt,
+    string prefix;
+    if (!strcmp(header->GetSerialNumber(), "B010426"))
+        prefix = "RSA51";
+    else
+        prefix = "RSA52";
+    header->SetName(Form("%s_header", prefix.c_str()));
+
+    TH1D* hmag = new TH1D(Form("%s_mag", prefix.c_str()), pInfo->File, pInfo->NumPt,
             0, pInfo->NumPt * pInfo->Intvl);
-    TH1D* hphs = new TH1D("h_tiq_time_phs", pInfo->File, pInfo->NumPt,
+    TH1D* hphs = new TH1D(Form("%s_phs", prefix.c_str()), pInfo->File, pInfo->NumPt,
             0, pInfo->NumPt * pInfo->Intvl);
-    TH2D* hmtpsd = new TH2D("h_tiq_mtpsd",
+    TH2D* hmtpsd = new TH2D(Form("%s_mtpsd%d", prefix.c_str(), ntap),
             Form("%s;frequency[Hz] (%g[Hz/bin]);time[s] (%g[s/bin]);"
                 "intensity[a.u.]", pInfo->File, 1. / pInfo->Intvl / cFrmPt,
                 pInfo->Intvl * cFrmPt), bins, pInfo->CenFreq - pInfo->Span / 2,
             pInfo->CenFreq + pInfo->Span / 2, blksz, 0,
             pInfo->NumPt * pInfo->Intvl);
-    TH2D* hfft = new TH2D("h_tiq_fft",
+    TH2D* hfft = new TH2D(Form("%s_fft", prefix.c_str()),
             Form("%s;frequency[Hz] (%g[Hz/bin]);time[s] (%g[s/bin]);"
                 "intensity[a.u.]", pInfo->File, 1. / pInfo->Intvl / cFrmPt,
                 pInfo->Intvl * cFrmPt), bins, pInfo->CenFreq - pInfo->Span / 2,
@@ -300,7 +308,7 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
     //h->GetYaxis()->SetTimeOffset(dt->Convert());
 
     int j, k, tmp;
-    Multitaper multitaper(cFrmPt);
+    Multitaper multitaper(cFrmPt, ntap, ntap/2+1);
     double* mtpsd = (double*) malloc(sizeof(double) * cFrmPt);
     fftw_complex* sgn = (fftw_complex*) fftw_malloc(
             sizeof(fftw_complex) * cFrmPt);
@@ -331,13 +339,13 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
     }
     cout << endl;
 
-    do_append_to_file(outfile, tiq_header);
-    do_append_to_file(outfile, hmag);
-    do_append_to_file(outfile, hphs);
-    do_append_to_file(outfile, hfft);
-    do_append_to_file(outfile, hmtpsd);
+    do_append_to_file(outfile, header); // header is written in any case
+    if (towrite[0]) do_append_to_file(outfile, hmtpsd);
+    if (towrite[1]) do_append_to_file(outfile, hfft);
+    if (towrite[2]) do_append_to_file(outfile, hmag);
+    if (towrite[3]) do_append_to_file(outfile, hphs);
 
-    delete tiq_header;
+    delete header;
     delete hmag;
     delete hphs;
     delete hfft;
@@ -350,9 +358,10 @@ bool do_process_tiq( const char* outfile, FILE* fp, Info_t* pInfo) {
 
 
 //______________________________________________________________________________
-bool prepare_tiq(const char * outfile, const char* infile)
+bool prepare_tiq(const char * outfile, const char* infile, const char* basename,
+        Int_t ntap, bool* towrite)
 {
-    Info_t Info = {infile, 0, 0, .0, .0, .0, .0, TDatime(2001, 1, 1, 0, 0, 0)};
+    Info_t Info = {basename, {}, 0, 0, .0, .0, .0, .0, TDatime(2001, 1, 1, 0, 0, 0)};
     FILE *fp = fopen(infile, "rb");
     if (!fp) {
         fprintf(stderr, "Error: can't open file `%s'!\n", infile);
@@ -364,7 +373,7 @@ bool prepare_tiq(const char * outfile, const char* infile)
     }
 
     /* visualization */
-    if (!do_process_tiq(outfile, fp, &Info)) {
+    if (!do_process_tiq(outfile, fp, &Info, ntap, towrite)) {
         return false;
     }
 
@@ -376,7 +385,7 @@ bool prepare_tiq(const char * outfile, const char* infile)
 
 //______________________________________________________________________________
 // Make a histogram
-TH1F * make_histo_csv_cpp_style(const char* filename){
+TH1F * make_histo_csv_cpp_style(const char* filename, const char* basename){
 
     ifstream data;
     data.open(filename);
@@ -400,7 +409,8 @@ TH1F * make_histo_csv_cpp_style(const char* filename){
         yvals.push_back(yval);
     }
 
-    TH1F * h = new TH1F (Form("h_csv_time_%c%c", filename[0], filename[1]), "Kicker Plot", xvals.size(), xvals.front(), xvals.back());
+    TH1F * h = new TH1F (Form("Oscil_%c%c", basename[0], basename[1]), basename, xvals.size(), xvals.front(), xvals.back());
+    //TH1F * h = new TH1F (Form("h_csv_time_%c%c", filename[0], filename[1]), "Kicker Plot", xvals.size(), xvals.front(), xvals.back());
     for(Int_t i=0; i < xvals.size(); ++i)
     {
         h->SetBinContent(i+1, yvals.at(i));	  
@@ -444,8 +454,8 @@ TH1F * make_histo_csv_c_style(const char* filename){
 }
 
 //______________________________________________________________________________
-inline bool exists (const std::string& name) {
-    ifstream f(name.c_str());
+inline bool exists (const char* file) {
+    ifstream f(file);
     if (f.good()) {
         f.close();
         return true;
@@ -456,29 +466,78 @@ inline bool exists (const std::string& name) {
 }
 
 //______________________________________________________________________________
-Int_t main(Int_t argc, char *argv[])
+void usage () {
+
+  cout << "Usage:\n\n";
+  cout << "    time2root root_filename time_filename\n\n";
+  cout << "or\n\n";
+  cout << "    time2root root_filename time_filename towrite\n\n";
+  cout << "or\n\n";
+  cout << "    time2root root_filename time_filename towrite number_of_tapers\n\n";
+  cout << "    towrite: string of 4 digits - 0 or 1 - specifies type of outputs\n";
+  cout << "        [0]: multi-taper estimation\n";
+  cout << "        [1]: plain FFT             \n";
+  cout << "        [2]: magnitude versus time \n";
+  cout << "        [3]: phase versus time   \n\n";
+  cout << "default value\n\n";
+  cout << "        towrite = 1000, number_of_tapers = 6\n\n";
+  
+  exit(EXIT_FAILURE);
+
+}
+
+//______________________________________________________________________________
+int main(int argc, char** argv)
 {
-    if (argc != 3){
-        cout << "Usage:\n\n";
-        cout << "    time2root root_filename time_filename\n\n";
-        exit(EXIT_SUCCESS);
+
+    // towrite:
+    // [0]: multi-taper estimation
+    // [1]: plain FFT
+    // [2]: magnitude versus time
+    // [3]: phase versus time
+    bool towrite[4] = {true, false, false, false};
+
+    // by default 6 tapers
+    Int_t ntap = 6;
+
+    if (argc < 3 || argc > 5) usage();
+
+    if (!exists(argv[2])) {
+        cerr << "No such file `" << argv[2] << "'\nAborting ... \n" << endl;
+        exit(EXIT_FAILURE);
     }
 
-    if (!exists(argv[2])) {cout << "No such file " << argv[2] << "\nAborting ... \n" << endl; exit(EXIT_FAILURE);}
+    /* extract the file basename and extension */
+    const char* basename = argv[2];
+    for (const char* p = argv[2]; *p; p++)
+        if (*p == '/')
+            basename = p + 1;
+    const char* extension = basename;
+    for (const char* p = basename; *p; p++)
+        if (*p == '.')
+            extension = p + 1;
 
-    char *file_extension = argv[2] + (strlen(argv[2]) - 3); // get last 3 characters of the string, old style C programming :-)
+    // parse towrite, if exists
+    if (argc >= 4)
+        for (int i = 0; i < 4; i++)
+            towrite[i] = (bool) (argv[3][i] - '0');
 
-    if (!strcmp(file_extension, "iqt") || !strcmp(file_extension, "IQT"))
-        do_process_iqt(argv[1], argv[2]);
-    else if (!strcmp(file_extension, "tiq") || !strcmp(file_extension, "TIQ")){
-        if(!prepare_tiq(argv[1], argv[2]))
-            exit(EXIT_FAILURE);
+    // parse number_of_tapers, if exists
+    if (argc == 5)
+        ntap = atoi(argv[4]);
+
+    // process file
+    if (!strcmp(extension, "iqt") || !strcmp(extension, "IQT")) // iqt file
+        do_process_iqt(argv[1], argv[2], basename, ntap, towrite);
+    else if (!strcmp(extension, "tiq") || !strcmp(extension, "TIQ")) // tiq file
+        prepare_tiq(argv[1], argv[2], basename, ntap, towrite);
+    else if (!strcmp(extension, "csv") || !strcmp(extension, "CSV")) // csv file
+        do_append_to_file(argv[1], make_histo_csv_cpp_style(argv[2], basename));
+    else {
+        cerr << "Supported file types are:\n\n" << "    iqt, tiq and csv\n\n";
+        exit(EXIT_FAILURE);
     }
-    else if(!strcmp(file_extension, "csv") || !strcmp(file_extension, "CSV"))
-    {
-        do_append_to_file(argv[1], make_histo_csv_cpp_style(argv[2]));
-    }
-    else
-        cout << "Supported file types are:\n\n" << "    iqt, tiq and csv\n\n";
-    return 0;
+
+    return EXIT_SUCCESS;
+
 }

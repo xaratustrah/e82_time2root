@@ -17,11 +17,11 @@
 // along with this software. If not, see <http://www.gnu.org/licenses/>.
 
 
-////////////////////////////////////
-// IQT TIQ Visualizer Macro	  //
-// Works also as compiled version //
-// Use Makefile			  //
-////////////////////////////////////
+//////////////////////////////////////
+// IQT TIQ Visualizer Macro         //
+// Works also as compiled version   //
+// Use Makefile                     //
+//////////////////////////////////////
 
 
 // includes for the compiled version
@@ -131,43 +131,48 @@ void compare(TH1* h1, TH1* h2) {
 }
 
 //______________________________________________________________________________
-TH1 * do_read_from_file(const char* filename, const char * histo_name, Header) // TH1 is the mother of all histos
+TH1* do_read_from_file(const char* filename, const char* histo_name) // TH1 is the mother of all histos
 {
-     TFile f (filename, "read");
-     if(!f.GetListOfKeys()->Contains(histo_name))
-     {
-	  cout << "The binary file does not contain a histogram with the name of " << histo_name << "." << endl;
-	  cout << "Try one of the following:\n\n";
-	  f.GetListOfKeys()->ls();
-	  return 0;
-     }
-     TH1 * h = (TH1*)f.Get(histo_name);
-     h->SetDirectory(0);	// magic! histo should not belong to any directory in memory
-     f.Close();
-     return h;
-}
+    TH1* h = NULL;
+    TFile f(filename);
+    string dir(histo_name, 5);
 
-//______________________________________________________________________________
-TH1 * do_read_from_file(const char* filename, const char * histo_name) // TH1 is the mother of all histos
-{
-     TFile f (filename, "read");
-     if(!f.GetListOfKeys()->Contains(histo_name))
-     {
-	  cout << "The binary file does not contain a histogram with the name of " << histo_name << "." << endl;
-	  cout << "Try one of the following:\n\n";
-	  f.GetListOfKeys()->ls();
-	  return 0;
-     }
+    if (!gFile->GetDirectory(dir.c_str())) {
+        cout << "The root file does not contain a histogram with the name of `"
+            << histo_name << "'" << endl;
+        cout << "Try one of the following:\n" << endl;
+        TListIter* iter = (TListIter*) gFile->GetListOfKeys()->MakeIterator();
+        while (TDirectoryFile* dirf = (TDirectoryFile*) iter->Next()) {
+            gDirectory = gFile;
+            gDirectory->cd(dirf->GetName());
+            gDirectory->ls();
+        }
+        f.Close();
+        return h;
+    }
 
-     Header* header = NULL;
-     const char* pch = NULL;
-     if ((pch = strstr(histo_name, "iqt")) && (header = (Header*) f.Get("iqt_header"))) header->Show();
-     if ((pch = strstr(histo_name, "tiq")) && (header = (Header*) f.Get("tiq_header"))) header->Show();
+    gDirectory->cd(dir.c_str());
+    if (!gDirectory->GetKey(histo_name)) {
+        cout << "The root file does not contain a histogram with the name of `"
+            << histo_name << "'" << endl;
+        cout << "Try one of the following:\n" << endl;
+        gDirectory->ls();
+        f.Close();
+        return h;
+    }
 
-     TH1 * h = (TH1*)f.Get(histo_name);
-     h->SetDirectory(0);	// magic! histo should not belong to any directory in memory
-     f.Close();
-     return h;
+    if (!strcmp(dir.c_str(), "Oscil")) {
+        h = (TH1*)gDirectory->Get(histo_name);
+        h->SetDirectory(0);	// magic! histo should not belong to any directory in memory
+    } else {
+        Header* header = (Header*) gDirectory->Get(Form("%s_header", dir.c_str()));
+        header->Show();
+        h = (TH1*)gDirectory->Get(histo_name);
+        h->SetDirectory(0);
+    }
+
+    f.Close();
+    return h;
 }
 
 //______________________________________________________________________________
@@ -187,41 +192,37 @@ char * file_name_gui (){
 
 //______________________________________________________________________________
 //
-void draw_stack(const char * filename){
-     THStack *hs = new THStack("h_kicker_stack","Kicker signals");
-     TFile f (filename, "read");
-     hs->SetTitle("Kicker signals;Voltage [v];Time [s]");
-     TH1D * h;
-     string histo_name;
-     int color = 2;
-     for (int i = 1; i <= 4; ++i)
-     {
-	  histo_name = Form("h_kicker_time_C%d", i);
-	  if(f.GetListOfKeys()->Contains(histo_name.c_str()))
-	  {
-	       h = (TH1D*)do_read_from_file(filename, histo_name.c_str());
-	       h->SetLineColor(color);
-	       hs->Add(h);
-	       color = color + 2; // avoid ugly green
-	  }
-     }
+bool draw_stack(const char* filename) {
+    THStack* hs = new THStack("Oscil_stack","Kicker Signals;Voltage [V];Time [s]");
+    //hs->SetTitle("Kicker signals");
+    TH1D* h = NULL;
+    string histo_name;
+    int color = 2;
 
-     TCanvas * c = new TCanvas("c", "Measurements", 1600, 700);
-     c->SetGrid();
-     c->ToggleEditor();
-     c->ToggleEventStatus();
-     c->ToggleToolBar();
+    for (int i = 1; i <= 4; ++i) {
+        histo_name = Form("Oscil_C%d", i);
+        h = (TH1D*)do_read_from_file(filename, histo_name.c_str());
+        if (!h) return false;
+        h->SetLineColor(color);
+        hs->Add(h);
+        color = color + 2; // avoid ugly green
+    }
 
-     hs->Draw("nostack");
-//     hs->Draw("pads");
+    TCanvas * c = new TCanvas("c", "Measurements", 1280, 720);
+    c->SetGrid();
+    c->ToggleEditor();
+    c->ToggleEventStatus();
+    c->ToggleToolBar();
 
-     c->Modified();
-     c->Update(); // this line updates the canvas automatically, should come after Draw()
-     // The following line to connect the close button of the window manager to the main frame, in order to close properly.
-     ((TRootCanvas *)c->GetCanvasImp())->Connect("CloseWindow()", "TApplication", gApplication, "Terminate()");
+    hs->Draw("nostack");
+    //hs->Draw("pads");
 
-     return;
+    c->Modified();
+    c->Update(); // this line updates the canvas automatically, should come after Draw()
+    // The following line to connect the close button of the window manager to the main frame, in order to close properly.
+    ((TRootCanvas *)c->GetCanvasImp())->Connect("CloseWindow()", "TApplication", gApplication, "Terminate()");
 
+    return true;
 }
 
 //______________________________________________________________________________
@@ -266,12 +267,15 @@ int main(int argc, char **argv) {
 
     TApplication theApp("theApp", &argc, argv);
 
-    if(!strcmp(which_histo, "stack"))
-        draw_stack(filename);
-    else{
-        TH1 * h = do_read_from_file(filename, which_histo);
-        if(h == 0) return 3;
-        cout << "Showing plot " << which_histo << " from file " << filename << "." << endl;
+    if(!strcmp(which_histo, "stack")) {
+        if (!draw_stack(filename))
+            return 3;
+    } else {
+        TH1* h = do_read_from_file(filename, which_histo);
+        if(h == NULL)
+            return 4;
+
+        cout << "Showing plot `" << which_histo << "' from file `" << filename << "'" << endl;
         if (begin > end)
             draw_on_screen(h, 0, h->GetYaxis()->GetBinLowEdge(h->GetNbinsY()));
         else
@@ -284,6 +288,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-
-
-

@@ -34,14 +34,20 @@ class Header : public TNamed {
             fCenterFrequency(.0),
             fSpan(.0),
             fGainOffset(.0),
-            fScaling(1.) { SetDateTime("1970-01-01 00:00:00"); }
+            fScaling(1.) {
+                SetDateTime("1970-01-01 00:00:00");
+                SetSerialNumber("xxxxxxx");
+            }
         Header(const char* name, const char* title) : TNamed(name, title),
             fValidFrames(0),
             fFrameLength(.0),
             fCenterFrequency(.0),
             fSpan(.0),
             fGainOffset(.0),
-            fScaling(1.) { SetDateTime("1970-01-01 00:00:00"); }
+            fScaling(1.) {
+                SetDateTime("1970-01-01 00:00:00");
+                SetSerialNumber("xxxxxxx");
+            }
         Header(const Header&);
         Header& operator=(const Header&);
         virtual ~Header() { }
@@ -53,6 +59,7 @@ class Header : public TNamed {
         void SetGainOffset(double x) { fGainOffset = x; }
         void SetScaling(double x) { fScaling = x; }
         void SetDateTime(const char*);
+        void SetSerialNumber(const char*);
 
         int GetValidFrames() const { return fValidFrames; }
         double GetFrameLength() const { return fFrameLength; }
@@ -61,6 +68,7 @@ class Header : public TNamed {
         double GetGainOffset() const { return fGainOffset; }
         double GetScaling() const { return fScaling; }
         const char* GetDateTime() const { return fDateTime; }
+        const char* GetSerialNumber() const { return fSerialNumber; }
 
         void Show() const {
             ShowValidFrames();
@@ -70,6 +78,7 @@ class Header : public TNamed {
             ShowGainOffset();
             ShowScaling();
             ShowDateTime();
+            ShowSerialNumber();
         }
 
     protected:
@@ -80,6 +89,7 @@ class Header : public TNamed {
         double fGainOffset; // dB, for IQT
         double fScaling; // lin, for TIQ
         char   fDateTime[20]; // yyyy-mm-dd hh:mm:ss
+        char   fSerialNumber[8]; // for TIQ
 
         void ShowValidFrames() const;
         void ShowFrameLength() const;
@@ -88,6 +98,7 @@ class Header : public TNamed {
         void ShowGainOffset() const;
         void ShowScaling() const;
         void ShowDateTime() const;
+        void ShowSerialNumber() const;
 
         ClassDef(Header, 1)
 };

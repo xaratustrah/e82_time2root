@@ -12,9 +12,10 @@ STDLIBDIR :=
 endif
 
 CPPFLAGS := $(shell root-config --cflags) $(STDINCDIR)
-LDFLAGS := $(shell root-config --glibs) $(STDLIBDIR) -lgsl -lgslcblas -lfftw3 -lm
+LDFLAGS := $(shell root-config --glibs) $(STDLIBDIR)
 
-CPPFLAGS += -g
+CPPFLAGS += -g -fPIC
+LDFLAGS += -lgsl -lgslcblas -lfftw3 -lm
 
 TARGET = time2root
 
@@ -39,7 +40,7 @@ compare: compare.cxx $(OBJ)
 read_iqt: read_iqt.cxx $(OBJ)
 	$(CXX) $(CPPFLAGS) -o read_iqt read_iqt.cxx $(OBJ) $(LDFLAGS)
 
-visualizer : $(OBJ)
+visualizer : visualizer.C $(OBJ)
 	$(CXX) $(CPPFLAGS) -o visualizer visualizer.C $(OBJ) $(LDFLAGS)
 
 clean :
