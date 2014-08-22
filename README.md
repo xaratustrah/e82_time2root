@@ -24,7 +24,7 @@ The code can creates following histograms and store them in a single binary ROOT
 | RSA30_mtpsd2,4,6,8 or 10 | IQT multitaper estimation using FN implementation, showing the number of tapers|
 | RSA30_fft | IQT standard FFT using FFTW|
 | RSA51_mag | TIQ time domain magnitude |
-| RSA51_phs | TIQ Itime domain phase |
+| RSA51_phs | TIQ time domain phase |
 | RSA51_mtpsd2,4,6,8 or 10 | TIQ multitaper estimation using XC implementation, showing the number of tapers|
 | RSA51_fft | TIQ Standard FFT using FFTW |
 | RSA52_mag | TIQ time domain magnitude |
@@ -40,7 +40,7 @@ In addition, instances of user-defined class *Header*, used as containers for so
 
 Syntax:
 
-	./time2root output_filename.root input_filename
+	./time2root output_filename input_filename
 
 or
 
@@ -55,10 +55,10 @@ By choosing one of the syntaxes above, you can control the output of the engine.
 The second syntax provides a possibility to choose what additional histograms should be written to the file by formatting the string called **towrite**, which **MUST** be a 4 digit binary number as described below:
 
 | bit | description |
-| -- | -- |
+| ----- | ----- |
 | MSB | multi-taper estimation |
 | 3rd digit | plain FFT |
-| 2nd place | magnitud versus time|
+| 2nd place | magnitude versus time|
 | LSB | phase versus time |
 
 Default values are 1000 which means, that by default only the multitaper spectrum is stored. If you are interested in plain FFT and phase data, then you choose 0101.
