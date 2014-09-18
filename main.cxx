@@ -385,36 +385,31 @@ bool prepare_tiq(const char * outfile, const char* infile, const char* basename,
 
 //______________________________________________________________________________
 // Make a histogram
-TH1F * make_histo_csv_cpp_style(const char* filename, const char* basename){
-
+TH1D* make_histo_csv_cpp_style(const char* filename, const char* basename) {
     ifstream data;
     data.open(filename);
-
     string tmp;
-    data >> tmp; // skip the line
-    data >> tmp; // skip the line
-    data >> tmp; // skip the line
-    data >> tmp; // skip the line
-    data >> tmp; // skip the line
-    data >> tmp; // skip the line
-
-    char comma;
+    getline(data, tmp); // skip the line
+    getline(data, tmp); // skip the line
+    getline(data, tmp); // skip the line
+    getline(data, tmp); // skip the line
+    getline(data, tmp); // skip the line
 
     // containers
     std::vector<Double_t> xvals, yvals;  
     Double_t xval, yval;
-
-    for (data >> xval >> comma >> yval; data.good(); data >> xval >> comma >> yval){
+    char comma;
+    for (data >> xval >> comma >> yval; data.good(); data >> xval >> comma >> yval) {
         xvals.push_back(xval);
         yvals.push_back(yval);
     }
+    data.close();
 
-    TH1F * h = new TH1F (Form("Oscil_%c%c", basename[0], basename[1]), basename, xvals.size(), xvals.front(), xvals.back());
-    //TH1F * h = new TH1F (Form("h_csv_time_%c%c", filename[0], filename[1]), "Kicker Plot", xvals.size(), xvals.front(), xvals.back());
-    for(Int_t i=0; i < xvals.size(); ++i)
-    {
+    tmp = string(basename, 6);
+    TH1D* h = new TH1D(Form("Oscil_%s", tmp.c_str()), basename, xvals.size(), xvals.front(), xvals.back());
+    for (int i = 0; i < xvals.size(); i++)
         h->SetBinContent(i+1, yvals.at(i));	  
-    }
+
     return h;
 }
 

@@ -78,7 +78,7 @@ void draw_on_screen(TH1 * h, double begin, double end)
         hcopy->GetXaxis()->SetTitle(h->GetXaxis()->GetTitle());
         for (i = 1; i <= nx; i++)
             hcopy->SetBinContent(i, (Float_t) h->GetBinContent(i));
-        hcopy->Draw("colz");
+        hcopy->Draw();
     } else {
         nx = h->GetNbinsX();
         double w = h->GetYaxis()->GetBinWidth(1);
@@ -167,7 +167,7 @@ TH1* do_read_from_file(const char* filename, const char* histo_name) // TH1 is t
     } else {
         Header* header = (Header*) gDirectory->Get(Form("%s_header", dir.c_str()));
         header->Show();
-	cout << "Data from instrument " << dir << endl;
+        cout << "Data from instrument " << dir << endl;
         h = (TH1*)gDirectory->Get(histo_name);
         h->SetDirectory(0);
     }
@@ -180,49 +180,55 @@ TH1* do_read_from_file(const char* filename, const char* histo_name) // TH1 is t
 //
 char * file_name_gui (){
 
-     TGFileInfo fFileInfo;
-     const char *types[]={"ROOT files","*.root",0,0};
-     fFileInfo.fFileTypes=types;
-     TString parentDir(".");
-     fFileInfo.fIniDir=StrDup(parentDir);
-     new TGFileDialog (gClient->GetRoot(), 0, kFDOpen, &fFileInfo);
+    TGFileInfo fFileInfo;
+    const char *types[]={"ROOT files","*.root",0,0};
+    fFileInfo.fFileTypes=types;
+    TString parentDir(".");
+    fFileInfo.fIniDir=StrDup(parentDir);
+    new TGFileDialog (gClient->GetRoot(), 0, kFDOpen, &fFileInfo);
 
-     return ((char*)fFileInfo.fFilename);
+    return ((char*)fFileInfo.fFilename);
 }
 
 
 //______________________________________________________________________________
 //
 bool draw_stack(const char* filename) {
-    THStack* hs = new THStack("Oscil_stack","Kicker Signals;Voltage [V];Time [s]");
-    //hs->SetTitle("Kicker signals");
-    TH1D* h = NULL;
-    string histo_name;
-    int color = 2;
+    THStack* hsi = new THStack("Oscil_stack_inj", "Kicker Signals at Injection;Time [s];Voltage [V]");
+    THStack* hse = new THStack("Oscil_stack_ext", "Kicker Signals at Extraction;Time [s];Voltage [V]");
+    TH1D* hi = NULL;
+    TH1D* he = NULL;
 
-    for (int i = 1; i <= 4; ++i) {
-        histo_name = Form("Oscil_C%d", i);
-        h = (TH1D*)do_read_from_file(filename, histo_name.c_str());
-        if (!h) return false;
-        h->SetLineColor(color);
-        hs->Add(h);
+    int color = 2;
+    for (int i = 1; i <= 4; i++) {
+        hi = (TH1D*)do_read_from_file(filename, Form("Oscil_C%d_inj", i));
+        he = (TH1D*)do_read_from_file(filename, Form("Oscil_C%d_ext", i));
+        if (!(hi && he))
+            return false;
+        hi->SetLineColor(color);
+        he->SetLineColor(color);
+        hsi->Add(hi);
+        hse->Add(he);
         color = color + 2; // avoid ugly green
     }
 
-    TCanvas * c = new TCanvas("c", "Measurements", 1280, 720);
-    c->SetGrid();
+    TCanvas* c = new TCanvas("c", "kicker", 1280, 720);
     c->ToggleEditor();
     c->ToggleEventStatus();
     c->ToggleToolBar();
+    c->Divide(2, 1);
 
-    hs->Draw("nostack");
-    //hs->Draw("pads");
+    c->cd(1);
+    gPad->SetGrid();
+    hsi->Draw("nostack");
+    //hsi->Draw("pads");
+    c->cd(2);
+    gPad->SetGrid();
+    hse->Draw("nostack");
+    //hse->Draw("pads");
 
-    c->Modified();
-    c->Update(); // this line updates the canvas automatically, should come after Draw()
     // The following line to connect the close button of the window manager to the main frame, in order to close properly.
     ((TRootCanvas *)c->GetCanvasImp())->Connect("CloseWindow()", "TApplication", gApplication, "Terminate()");
-
     return true;
 }
 
@@ -281,9 +287,7 @@ int main(int argc, char **argv) {
             draw_on_screen(h, 0, h->GetYaxis()->GetBinLowEdge(h->GetNbinsY()));
         else
             draw_on_screen(h, begin, end);
-
     }
-
 
     theApp.Run();
 
