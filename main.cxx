@@ -405,8 +405,8 @@ TH1D* make_histo_csv_cpp_style(const char* filename, const char* basename) {
     }
     data.close();
 
-    tmp = string(basename, 6);
-    TH1D* h = new TH1D(Form("Oscil_%s", tmp.c_str()), basename, xvals.size(), xvals.front(), xvals.back());
+    tmp = string(basename + 23, 3);
+    TH1D* h = new TH1D(Form("Oscil_C%c_%s", basename[1], tmp.c_str()), basename, xvals.size(), xvals.front(), xvals.back());
     for (int i = 0; i < xvals.size(); i++)
         h->SetBinContent(i+1, yvals.at(i));	  
 
