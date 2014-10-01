@@ -95,7 +95,6 @@ int IQData__TekRSA3303B::ReadFile(string filename) {
 //
 	char some[3] = {};
 	mIQFileP->read(some, 2);
-	first = (some[0] - '0')* 10 + (some[1] - '0');
 	string what(some, 2);
 	stringstream wandler(some);
 	int first=0;
