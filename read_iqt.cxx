@@ -23,6 +23,8 @@
 #include <TStyle.h>
 #include <TColor.h>
 #include <TApplication.h>
+#include <TROOT.h>
+#include <TSystem.h>
 #include <gsl/gsl_fft_complex.h>
 
 #include "iqtdata.h"
@@ -37,12 +39,30 @@ using namespace std;
 int main(int argc, char *argv[])
 {
      IQData__TekRSA3303B my_iq_data;
-     string filename, iq_filename;
+     string filename, file_basename, iq_filename, out_filename;
+
+     bool draw=false;
+
 
      int ip;
      //cout << "Please enter name of *.iqt-file without extension: ";
      //cin >> filename;
+     if (argc == 2) draw = false;
+     else if (argc == 3){
+	  draw = true;
+	  out_filename = argv[2];
+	  gROOT->SetBatch(kTRUE);
+     }
+     else{
+	  cout << "Too many arguments." << endl;
+	  cout << "Please provice either iqt filename for visual display, or iqt filename AND output filename for storing in a PNG file in batch mode." << endl;
+	  cout << "Aborting..." << endl;
+	  
+	  exit(0);
+     }
+     
      filename=argv[1];
+     file_basename = gSystem->TSystem::BaseName(argv[1]);
      iq_filename = filename; //+ ".iqt";
 
      cout << "Data " << iq_filename << " is going to be read" << endl;
@@ -141,7 +161,7 @@ int main(int argc, char *argv[])
      double fend= start_frequency+(double)(ifmax_multi-1)*dfreq_multi;
  
      int bint=n_of_multi;
-     TString histoname="Schottky_Spectrum_"+filename;
+     TString histoname="Schottky_Spectrum_"+file_basename;
      TH2D *RAW = new TH2D(histoname,histoname,binf,fstart,fend,bint,0.0,(double)(bint)*delta_t);
 
      // constant of multiplication for z axis
@@ -183,41 +203,42 @@ int main(int argc, char *argv[])
      gStyle->SetPadColor(0);
      gStyle->SetOptStat("");
   
-     bool draw=true;
-
      // Title of the histogramm
      std::ostringstream titlestring;  
-     titlestring <<  filename << ";Frequency [Hz] ("<< dfreq_multi <<" [Hz/bin]);Time [s] (" << delta_t << " [s/bin]);Intensity [a.u.]";
+     titlestring <<  file_basename << ";Frequency [Hz] ("<< dfreq_multi <<" [Hz/bin]);Time [s] (" << delta_t << " [s/bin]);Intensity [a.u.]";
      TString title=titlestring.str();
 
-     if(draw)
-     {
-	  TApplication app("App", &argc, argv);
-	  TCanvas *canva_2dh = new  TCanvas("Time Resolved spectrum","Time Resolved spectrum",1000,800);
-	  canva_2dh->ToggleEditor();
-	  canva_2dh->SetCrosshair();
-	  canva_2dh->ToggleEventStatus();
-	  canva_2dh->ToggleToolBar();
-	  RAW->SetTitle(title);
-	  RAW->SetStats(kFALSE);
-	  RAW->Draw("zcol");
-	  RAW->GetXaxis()->SetLabelSize(0.025);
-	  RAW->GetXaxis()->SetTitleSize(0.025);
-	  RAW->GetXaxis()->SetTitleOffset(1.5);
-	  RAW->GetYaxis()->SetLabelSize(0.025);
-	  RAW->GetYaxis()->SetTitleSize(0.025);
-	  RAW->GetYaxis()->SetTitleOffset(1.5);
-	  RAW->GetZaxis()->SetLabelSize(0.025);
-	  RAW->GetZaxis()->SetTitleSize(0.025);
-	  RAW->GetZaxis()->SetTitleOffset(1.3);
+     TApplication app("App", &argc, argv);
+     TCanvas *canva_2dh = new  TCanvas("Time Resolved spectrum","Time Resolved spectrum",1000,800);
+     canva_2dh->ToggleEditor();
+     canva_2dh->SetCrosshair();
+     canva_2dh->ToggleEventStatus();
+     canva_2dh->ToggleToolBar();
+     RAW->SetTitle(title);
+     RAW->SetStats(kFALSE);
+     RAW->Draw("zcol");
+     RAW->GetXaxis()->SetLabelSize(0.025);
+     RAW->GetXaxis()->SetTitleSize(0.025);
+     RAW->GetXaxis()->SetTitleOffset(1.5);
+     RAW->GetYaxis()->SetLabelSize(0.025);
+     RAW->GetYaxis()->SetTitleSize(0.025);
+     RAW->GetYaxis()->SetTitleOffset(1.5);
+     RAW->GetZaxis()->SetLabelSize(0.025);
+     RAW->GetZaxis()->SetTitleSize(0.025);
+     RAW->GetZaxis()->SetTitleOffset(1.3);
       
-	  canva_2dh->Update(); // this line updates the canvas automatically, should come after Draw()
+     canva_2dh->Update(); // this line updates the canvas automatically, should come after Draw()
+
+     if (draw){
+	  canva_2dh->SaveAs(Form("%s.png", out_filename.c_str()));
+     }
+     else {
 	  // The following line to connect the close button of the window manager to the main frame, in order to close properly.
 	  ((TRootCanvas *)canva_2dh->GetCanvasImp())->Connect("CloseWindow()", "TApplication", gApplication, "Terminate()");
 
 	  app.Run();
      }
-
+     
      for (i_multi=0; i_multi < n_of_multi; i_multi++) delete [] multi_taper_spektrum[i_multi];
      delete [] multi_taper_spektrum;
      delete [] iq_data_p;
